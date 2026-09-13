@@ -1,0 +1,14 @@
+{
+  "name": "kumi",
+  "description": "The kumi engineering team plugin: named AI specialists for Go, Angular, iOS, Python, React, and databases, coordinated by yui, with memory that carries across sessions.",
+  "owner": {
+    "name": "Anna Veretennykova"
+  },
+  "plugins": [
+    {
+      "name": "kumi",
+      "source": "./",
+      "description": "A coordinated engineering team of named AI specialists that remembers your project between sessions. Call yui to route work, or any specialist directly by name."
+    }
+  ]
+}

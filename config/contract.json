@@ -1,0 +1,18 @@
+{
+  "description": "The kumi skill contract. This file is the single source of truth for what makes a valid specialist. tests/validate_skills.py reads it, so changing the contract here changes validation everywhere. Edit this, not the scripts.",
+  "frontmatter_required": ["name", "description"],
+  "metadata_required": ["role", "domain", "when-to-use", "hands-off-to"],
+  "hard_gate": {
+    "open": "<HARD-GATE>",
+    "close": "</HARD-GATE>"
+  },
+  "required_sections": [
+    "## Anti-Pattern",
+    "## Checklist",
+    "## Process Flow",
+    "## Handoff",
+    "## Key Principles",
+    "## Tone"
+  ],
+  "sections_must_be_ordered": true
+}

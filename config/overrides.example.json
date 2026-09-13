@@ -1,0 +1,12 @@
+{
+  "_comment": "Copy this file to your kumi state directory as overrides.json (by default .kumi/overrides.json in the project, or $KUMI_STATE_DIR/overrides.json if you set that). Rules under 'all' apply to every specialist. Rules under a specialist's name (jaan, mart, and so on) apply only to that one. Each rule is an object with a 'rule' field, so adding one is copying a line and changing the text. kumi reads this at the start of a session and applies your rules on top of the built-in ones without changing any source file.",
+  "all": [
+    { "rule": "Prefer table-driven tests." }
+  ],
+  "jaan": [
+    { "rule": "Use the project's error-wrapping helper, not fmt.Errorf." }
+  ],
+  "mart": [
+    { "rule": "Flag any exported symbol missing a doc comment." }
+  ]
+}

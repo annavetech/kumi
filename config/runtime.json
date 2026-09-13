@@ -1,0 +1,27 @@
+{
+  "description": "Runtime layout for the kumi shared-state and observability files. The hooks read these names, so you can rename or relocate any of them here without touching hook code. All paths are relative to state_dir, which defaults to .kumi in the working project. Set the KUMI_STATE_DIR environment variable to move that base directory: an absolute path keeps state in one place across projects, a relative path is taken from the project root.",
+  "state_dir": ".kumi",
+  "files": {
+    "status": "status.md",
+    "handoff": "handoff.md",
+    "overrides": "overrides.json"
+  },
+  "dirs": {
+    "decisions": "decisions",
+    "memory": "memory",
+    "logs": "logs",
+    "metrics": "metrics"
+  },
+  "memory": {
+    "log": "log.md",
+    "signature": ".last",
+    "restore_entries": 3
+  },
+  "logs": {
+    "activity": "activity.log"
+  },
+  "metrics": {
+    "sessions": "sessions.jsonl",
+    "agents": "agents.jsonl"
+  }
+}

@@ -1,0 +1,106 @@
+# kumi routing evals
+#
+# Each case is a user prompt and the specialist that should handle it. This is
+# the ground truth for "does the right specialist fire for the right work". The
+# behavioural check is done by invoking the prompt in Claude Code and confirming
+# the expected skill activates; check_cases.py verifies every case is well-formed
+# and targets a real skill, so the set can never drift from the roster.
+#
+# Fields:
+#   prompt  - what the user would type
+#   expect  - the skill that should handle it (a folder under skills/)
+#   why     - the routing signal that makes it unambiguous
+
+cases:
+  # Coordinator: multi-role or "who should do this" requests route to yui.
+  - prompt: "build a REST endpoint that lists projects, with tests, and review it before I ship"
+    expect: yui
+    why: spans design, build, and review, a sequenced feature, which is the coordinator's job
+
+  - prompt: "who should handle adding a new column to the dashboard and testing it"
+    expect: yui
+    why: asks for routing, not for the work itself
+
+  # Architecture (cross-cutting: design before code, any stack).
+  - prompt: "design the shape of a new pagination API before we write any code"
+    expect: kai
+    why: design and spec before code, which is the architect's job in any stack
+
+  # Go: implementer, debugger, reviewer.
+  - prompt: "add a Go handler that returns the list of active users as JSON"
+    expect: jaan
+    why: writing a new Go feature
+
+  - prompt: "the TestUserList Go test panics with a nil pointer, find and fix it"
+    expect: siim
+    why: a specific Go bug to reproduce and fix
+
+  - prompt: "review this Go service for security and concurrency issues before merge"
+    expect: mart
+    why: read-only Go quality/security review
+
+  # Angular: implementer, debugger, reviewer.
+  - prompt: "add an Angular component that shows a filterable table of orders"
+    expect: liis
+    why: writing a new Angular feature
+
+  - prompt: "the Angular route guard redirects in a loop, find and fix the cause"
+    expect: kadi
+    why: a specific Angular bug to reproduce and fix
+
+  - prompt: "review the new Angular dashboard component for change-detection problems"
+    expect: tiiu
+    why: read-only Angular review
+
+  # iOS: implementer, debugger, reviewer.
+  - prompt: "add a SwiftUI settings screen with a toggle bound to app storage"
+    expect: ren
+    why: writing a new iOS feature
+
+  - prompt: "the iOS list crashes on scroll with an index out of range, fix it"
+    expect: shu
+    why: a specific iOS bug to reproduce and fix
+
+  - prompt: "review this Swift view model for memory safety and retain cycles"
+    expect: ryo
+    why: read-only iOS review
+
+  # Ops.
+  - prompt: "the dev server is still holding port 4200, stop it and confirm the port is free"
+    expect: enn
+    why: starting/stopping/inspecting processes and ports
+
+  # Python: implementer, debugger, reviewer.
+  - prompt: "add a Python function that parses the CSV and returns typed rows"
+    expect: eero
+    why: writing a new Python feature
+
+  - prompt: "this pytest fails with a KeyError in the parser, find and fix it"
+    expect: anu
+    why: a specific Python bug to reproduce and fix
+
+  - prompt: "review this Python module for security and error handling before merge"
+    expect: ivo
+    why: read-only Python review
+
+  # React: implementer, debugger, reviewer.
+  - prompt: "add a React component with a hook that fetches and lists orders"
+    expect: noa
+    why: writing a new React feature
+
+  - prompt: "the React list re-renders on every keystroke and loses focus, fix it"
+    expect: rui
+    why: a specific React bug to reproduce and fix
+
+  - prompt: "review this React component for re-renders and accessibility before I ship"
+    expect: aki
+    why: read-only React review
+
+  # Data stores.
+  - prompt: "design the schema and a safe migration to add an orders table with an index"
+    expect: saku
+    why: relational schema, query, and migration work
+
+  - prompt: "model a DynamoDB table for reading a user's recent activity efficiently"
+    expect: remo
+    why: document/key-value data modeling and access patterns
