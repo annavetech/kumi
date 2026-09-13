@@ -46,34 +46,39 @@ def target_of(tool_input):
 
 
 def main():
-    payload = read_payload()
-    cfg = kumi_state.load()
-    project = payload.get("cwd") or os.getcwd()
-    kumi = kumi_state.state_dir(project, cfg)
-    if not os.path.isdir(kumi):
-        return 0
-
-    logs_dir = os.path.join(kumi, cfg["dirs"]["logs"])
+    # Single outer boundary: whatever throws, however unexpected, this hook
+    # must still exit 0 rather than crash the tool call it's watching.
     try:
-        os.makedirs(logs_dir, exist_ok=True)
-    except OSError:
+        payload = read_payload()
+        cfg = kumi_state.load()
+        project = kumi_state.project_dir(payload)
+        kumi = kumi_state.state_dir(project, cfg)
+        if not os.path.isdir(kumi):
+            return 0
+
+        logs_dir = os.path.join(kumi, cfg["dirs"]["logs"])
+        try:
+            os.makedirs(logs_dir, exist_ok=True)
+        except OSError:
+            return 0
+
+        # One tab-separated line per action: time, short session id, tool,
+        # target. Tabs keep it easy to read and easy to cut or grep later.
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        session = (payload.get("session_id") or "-")[:8]
+        tool = payload.get("tool_name") or "-"
+        target = target_of(payload.get("tool_input"))
+        line = f"{stamp}\t{session}\t{tool}\t{target}\n"
+
+        try:
+            with open(os.path.join(logs_dir, cfg["logs"]["activity"]), "a", encoding="utf-8") as f:
+                f.write(line)
+        except OSError:
+            return 0
+
         return 0
-
-    # One tab-separated line per action: time, short session id, tool, target.
-    # Tabs keep it easy to read and easy to cut or grep later.
-    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    session = (payload.get("session_id") or "-")[:8]
-    tool = payload.get("tool_name") or "-"
-    target = target_of(payload.get("tool_input"))
-    line = f"{stamp}\t{session}\t{tool}\t{target}\n"
-
-    try:
-        with open(os.path.join(logs_dir, cfg["logs"]["activity"]), "a", encoding="utf-8") as f:
-            f.write(line)
-    except OSError:
+    except Exception:
         return 0
-
-    return 0
 
 
 if __name__ == "__main__":

@@ -121,7 +121,7 @@ kumi can also show you what the team did and what it cost. When a project uses t
 - An activity log records each tool action with a timestamp.
 - A metrics recorder captures token and time usage per session, and per agent for the specialists that run as subagents.
 
-Both are off unless the project has a `.kumi` directory, so they stay silent everywhere else. See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md).
+The `.kumi` directory they write into is created the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent, on `UserPromptSubmit`, `UserPromptExpansion`, or `PreToolUse`), and kept out of git through `.git/info/exclude`. In a project where kumi has never been called, both hooks stay silent. See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md).
 
 ## Configuration
 

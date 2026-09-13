@@ -34,7 +34,7 @@ The restored context is capped in size so it never floods the session. It shows 
 - The runtime fires it, not the model. `Stop`, `SubagentStop`, and `SessionStart` are runtime events, so the hooks run whether or not any instruction was followed.
 - It never blocks or fails. Every hook is guarded and always exits 0. A memory system must never break the agent it serves.
 - It does not spam. Capture writes only when the state changed since last time, tracked by a hash in `.kumi/memory/.last`.
-- It is off unless used. If a project has no `.kumi/` directory, both hooks do nothing.
+- It is off unless used. The `.kumi/` directory is created the first time kumi is called in a project (`hooks/ensure_state.py`, on a `/kumi:` command, a kumi skill, or a kumi subagent, via `UserPromptSubmit`, `UserPromptExpansion`, or `PreToolUse`). Until then, both hooks do nothing.
 
 ## The honest limit
 

@@ -8,6 +8,29 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill|Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "kumi:.*",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "hooks": [
