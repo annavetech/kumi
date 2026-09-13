@@ -50,55 +50,60 @@ def rule_text(item):
 
 
 def main():
-    payload = read_payload()
-    cfg = kumi_state.load()
-    project = payload.get("cwd") or os.getcwd()
-    kumi = kumi_state.state_dir(project, cfg)
-
-    path = os.path.join(kumi, cfg["files"]["overrides"])
-    if not os.path.isfile(path):
-        return 0  # no overrides in this project
-
+    # Single outer boundary: whatever throws, however unexpected, this hook
+    # must still exit 0 rather than crash the session it's watching.
     try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return 0
-    if not isinstance(data, dict):
-        return 0
+        payload = read_payload()
+        cfg = kumi_state.load()
+        project = kumi_state.project_dir(payload)
+        kumi = kumi_state.state_dir(project, cfg)
 
-    # Each top-level key is either "all" (rules for the whole team) or a
-    # specialist's name (rules just for that one). "_comment" is the human note
-    # in the template and is skipped.
-    lines = []
-    for key, items in data.items():
-        if key == "_comment" or not isinstance(items, list):
-            continue
-        who = "every specialist" if key == "all" else key
-        for item in items:
-            text = rule_text(item)
-            if text:
-                lines.append(f"- ({who}) {text}")
+        path = os.path.join(kumi, cfg["files"]["overrides"])
+        if not os.path.isfile(path):
+            return 0  # no overrides in this project
 
-    if not lines:
-        return 0
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, ValueError):
+            return 0
+        if not isinstance(data, dict):
+            return 0
 
-    context = (
-        "House rules for this project, from .kumi/overrides.json. Follow these on "
-        "top of the built-in discipline; a rule for a named specialist applies "
-        "when that specialist is doing the work:\n\n" + "\n".join(lines)
-    )
-    print(
-        json.dumps(
-            {
-                "hookSpecificOutput": {
-                    "hookEventName": "SessionStart",
-                    "additionalContext": context,
-                }
-            }
+        # Each top-level key is either "all" (rules for the whole team) or a
+        # specialist's name (rules just for that one). "_comment" is the
+        # human note in the template and is skipped.
+        lines = []
+        for key, items in data.items():
+            if key == "_comment" or not isinstance(items, list):
+                continue
+            who = "every specialist" if key == "all" else key
+            for item in items:
+                text = rule_text(item)
+                if text:
+                    lines.append(f"- ({who}) {text}")
+
+        if not lines:
+            return 0
+
+        context = (
+            "House rules for this project, from .kumi/overrides.json. Follow these on "
+            "top of the built-in discipline; a rule for a named specialist applies "
+            "when that specialist is doing the work:\n\n" + "\n".join(lines)
         )
-    )
-    return 0
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "SessionStart",
+                        "additionalContext": context,
+                    }
+                }
+            )
+        )
+        return 0
+    except Exception:
+        return 0
 
 
 if __name__ == "__main__":

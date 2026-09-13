@@ -52,54 +52,60 @@ def emit(context):
 
 
 def main():
-    payload = read_payload()
-    cfg = kumi_state.load()
-    project = payload.get("cwd") or os.getcwd()
-    kumi = kumi_state.state_dir(project, cfg)
-    if not os.path.isdir(kumi):
-        return 0  # kumi not in use here
+    # Single outer boundary: whatever throws, however unexpected, this hook
+    # must still exit 0 rather than crash the session it's watching.
+    try:
+        payload = read_payload()
+        cfg = kumi_state.load()
+        project = kumi_state.project_dir(payload)
+        kumi = kumi_state.state_dir(project, cfg)
+        if not os.path.isdir(kumi):
+            return 0  # kumi not in use here
 
-    pieces = []
+        pieces = []
 
-    # Recent memory entries (tail of the append-only log).
-    log_path = os.path.join(kumi, cfg["dirs"]["memory"], cfg["memory"]["log"])
-    if os.path.isfile(log_path):
-        try:
-            with open(log_path, encoding="utf-8") as f:
-                text = f.read()
-        except OSError:
-            text = ""
-        # Entries in the log start with a "## <timestamp>" heading. Split on it,
-        # take the last few, and drop the file's own "# kumi memory" header.
-        entries = text.split("\n## ")
-        n = int(cfg["memory"].get("restore_entries", 3))
-        recent = entries[-n:] if len(entries) > 1 else []
-        recent = [e for e in recent if e.strip() and not e.startswith("# kumi memory")]
-        if recent:
-            pieces.append(
-                "Recent kumi memory from prior sessions (most recent last):\n\n## "
-                + "\n## ".join(recent)
-            )
+        # Recent memory entries (tail of the append-only log).
+        log_path = os.path.join(kumi, cfg["dirs"]["memory"], cfg["memory"]["log"])
+        if os.path.isfile(log_path):
+            try:
+                with open(log_path, encoding="utf-8") as f:
+                    text = f.read()
+            except OSError:
+                text = ""
+            # Entries in the log start with a "## <timestamp>" heading. Split
+            # on it, take the last few, and drop the file's own "# kumi
+            # memory" header.
+            entries = text.split("\n## ")
+            n = int(cfg["memory"].get("restore_entries", 3))
+            recent = entries[-n:] if len(entries) > 1 else []
+            recent = [e for e in recent if e.strip() and not e.startswith("# kumi memory")]
+            if recent:
+                pieces.append(
+                    "Recent kumi memory from prior sessions (most recent last):\n\n## "
+                    + "\n## ".join(recent)
+                )
 
-    # Current handoff, if a task was mid-flight.
-    handoff_path = os.path.join(kumi, cfg["files"]["handoff"])
-    if os.path.isfile(handoff_path):
-        try:
-            with open(handoff_path, encoding="utf-8") as f:
-                handoff = f.read().strip()
-        except OSError:
-            handoff = ""
-        if handoff:
-            pieces.append("Current handoff (work in progress):\n\n" + handoff)
+        # Current handoff, if a task was mid-flight.
+        handoff_path = os.path.join(kumi, cfg["files"]["handoff"])
+        if os.path.isfile(handoff_path):
+            try:
+                with open(handoff_path, encoding="utf-8") as f:
+                    handoff = f.read().strip()
+            except OSError:
+                handoff = ""
+            if handoff:
+                pieces.append("Current handoff (work in progress):\n\n" + handoff)
 
-    if not pieces:
+        if not pieces:
+            return 0
+
+        context = "\n\n---\n\n".join(pieces)
+        if len(context) > MAX_CONTEXT_CHARS:
+            context = context[:MAX_CONTEXT_CHARS] + "\n\n[truncated]"
+        emit(context)
         return 0
-
-    context = "\n\n---\n\n".join(pieces)
-    if len(context) > MAX_CONTEXT_CHARS:
-        context = context[:MAX_CONTEXT_CHARS] + "\n\n[truncated]"
-    emit(context)
-    return 0
+    except Exception:
+        return 0
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Logging and metrics
 
-kumi can show you what the team did in a project and what it cost. Two hooks handle this, and both stay silent unless the project has a `.kumi` directory, so they never write anything in a project that does not use kumi.
+kumi can show you what the team did in a project and what it cost. Two hooks handle this, writing into the `.kumi` directory that is created the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent). In a project where kumi was never called, both stay silent and write nothing.
 
 ## Activity log
 
@@ -44,7 +44,7 @@ The token numbers and timestamps are read defensively. Transcript shapes vary be
 
 ## It never gets in the way
 
-Both hooks always exit cleanly and never raise, even on malformed input. An observability hook that could fail the agent it is watching would not be worth having. They also do nothing at all in a project without a `.kumi` directory.
+Both hooks always exit cleanly and never raise, even on malformed input. An observability hook that could fail the agent it is watching would not be worth having. Before the first kumi call in a project creates the `.kumi` directory, both hooks find nothing to write into and do nothing.
 
 ## Where the file names come from
 

@@ -106,53 +106,58 @@ def duration_seconds(first_ts, last_ts):
 
 
 def main():
-    payload = read_payload()
-    # A stop hook can fire again while it is running; bail so we don't loop.
-    if payload.get("stop_hook_active"):
-        return 0
-
-    cfg = kumi_state.load()
-    project = payload.get("cwd") or os.getcwd()
-    kumi = kumi_state.state_dir(project, cfg)
-    # No .kumi directory means this project does not use kumi. Stay silent.
-    if not os.path.isdir(kumi):
-        return 0
-
-    # The transcript is the only place the token counts live.
-    transcript = payload.get("transcript_path")
-    if not transcript or not os.path.isfile(transcript):
-        return 0
-
-    totals, first_ts, last_ts, agent = scan_transcript(transcript)
-    event = payload.get("hook_event_name") or ""
-    is_subagent = event == "SubagentStop"
-
-    record = {
-        "when": last_ts,
-        "session": (payload.get("session_id") or "")[:8],
-        "tokens": totals,
-        "duration_seconds": duration_seconds(first_ts, last_ts),
-    }
-    # Per-agent attribution only makes sense for a subagent's own transcript.
-    if is_subagent:
-        record["agent"] = agent or "unknown"
-
-    metrics_dir = os.path.join(kumi, cfg["dirs"]["metrics"])
+    # Single outer boundary: whatever throws, however unexpected, this hook
+    # must still exit 0 rather than crash the run it's watching.
     try:
-        os.makedirs(metrics_dir, exist_ok=True)
-    except OSError:
-        return 0
+        payload = read_payload()
+        # A stop hook can fire again while it is running; bail so we don't loop.
+        if payload.get("stop_hook_active"):
+            return 0
 
-    # Subagent runs and whole sessions go to separate files.
-    fname = cfg["metrics"]["agents"] if is_subagent else cfg["metrics"]["sessions"]
-    try:
-        # Append one compact JSON record per line (JSONL).
-        with open(os.path.join(metrics_dir, fname), "a", encoding="utf-8") as f:
-            f.write(json.dumps(record) + "\n")
-    except OSError:
-        return 0
+        cfg = kumi_state.load()
+        project = kumi_state.project_dir(payload)
+        kumi = kumi_state.state_dir(project, cfg)
+        # No .kumi directory means this project does not use kumi. Stay silent.
+        if not os.path.isdir(kumi):
+            return 0
 
-    return 0
+        # The transcript is the only place the token counts live.
+        transcript = payload.get("transcript_path")
+        if not transcript or not os.path.isfile(transcript):
+            return 0
+
+        totals, first_ts, last_ts, agent = scan_transcript(transcript)
+        event = payload.get("hook_event_name") or ""
+        is_subagent = event == "SubagentStop"
+
+        record = {
+            "when": last_ts,
+            "session": (payload.get("session_id") or "")[:8],
+            "tokens": totals,
+            "duration_seconds": duration_seconds(first_ts, last_ts),
+        }
+        # Per-agent attribution only makes sense for a subagent's own transcript.
+        if is_subagent:
+            record["agent"] = agent or "unknown"
+
+        metrics_dir = os.path.join(kumi, cfg["dirs"]["metrics"])
+        try:
+            os.makedirs(metrics_dir, exist_ok=True)
+        except OSError:
+            return 0
+
+        # Subagent runs and whole sessions go to separate files.
+        fname = cfg["metrics"]["agents"] if is_subagent else cfg["metrics"]["sessions"]
+        try:
+            # Append one compact JSON record per line (JSONL).
+            with open(os.path.join(metrics_dir, fname), "a", encoding="utf-8") as f:
+                f.write(json.dumps(record) + "\n")
+        except OSError:
+            return 0
+
+        return 0
+    except Exception:
+        return 0
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 {
   "name": "kumi",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A coordinated engineering team of named AI specialists that remembers your project between sessions. Call yui to route work, or call any specialist directly: Go (jaan, siim, mart), Angular (liis, kadi, tiiu), iOS (ren, shu, ryo), Python (eero, anu, ivo), React (noa, rui, aki), SQL (saku), NoSQL (remo), architecture for any stack (kai), and process management (enn). Each ships as both a skill and a subagent. Bundled hooks capture finished work when a session ends and restore it when the next one starts, and record per-session and per-agent token and time usage. Every specialist follows the same discipline: read context first, make the smallest correct change, verify.",
   "author": {
     "name": "Anna Veretennykova"

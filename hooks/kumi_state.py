@@ -47,6 +47,20 @@ def load():
         return dict(_DEFAULTS)
 
 
+def project_dir(payload):
+    """Return a usable project directory from a hook payload's "cwd" field.
+
+    A hook payload's cwd is expected to be a non-empty string. Anything else
+    (missing, None, "", or the wrong type such as an int, list, or dict) falls
+    back to the process's real working directory, so callers never hand a bad
+    type into os.path.join downstream.
+    """
+    project = payload.get("cwd") if isinstance(payload, dict) else None
+    if not isinstance(project, str) or not project:
+        return os.getcwd()
+    return project
+
+
 def state_dir(project, cfg):
     """Return the base directory kumi keeps its state in.
 

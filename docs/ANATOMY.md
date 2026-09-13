@@ -30,6 +30,7 @@ agents/                subagent versions, generated from skills/
 hooks/                 the runtime behaviour
   hooks.json           registers the hooks on their events
   kumi_state.py        shared helper that reads config/runtime.json
+  ensure_state.py      creates the .kumi dir on first kumi call (UserPromptSubmit, UserPromptExpansion, PreToolUse)
   capture_memory.py    writes finished work to memory (Stop, SubagentStop)
   restore_memory.py    reads memory back into a new session (SessionStart)
   log_activity.py      logs each tool action (PostToolUse)
@@ -58,7 +59,7 @@ CHANGELOG.md  CONTRIBUTING.md  CODE_OF_CONDUCT.md  LICENSE  README.md
 
 ## The .kumi working state
 
-None of the above is written into the plugin at runtime. When the team works on a project, it keeps its shared state under `.kumi/` in that project (gitignored):
+None of the above is written into the plugin at runtime. When the team works on a project, it keeps its shared state under `.kumi/` in that project. The directory is created the first time kumi is called there (`hooks/ensure_state.py`, on a `/kumi:` command, a kumi skill, or a kumi subagent, via `UserPromptSubmit`, `UserPromptExpansion`, or `PreToolUse`), and kept out of git through `.git/info/exclude` rather than the project's own `.gitignore`:
 
 ```
 .kumi/

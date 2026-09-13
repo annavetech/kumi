@@ -38,87 +38,95 @@ def read_payload():
 
 
 def main():
-    payload = read_payload()
-    if payload.get("stop_hook_active"):
-        return 0  # don't re-enter from a stop a stop hook itself triggered
+    # Single outer boundary: whatever throws, however unexpected, this hook
+    # must still exit 0 rather than crash the run it's watching.
+    try:
+        payload = read_payload()
+        if payload.get("stop_hook_active"):
+            return 0  # don't re-enter from a stop a stop hook itself triggered
 
-    cfg = kumi_state.load()
-    project = payload.get("cwd") or os.getcwd()
-    kumi = kumi_state.state_dir(project, cfg)
-    if not os.path.isdir(kumi):
-        return 0  # kumi not in use in this project
+        cfg = kumi_state.load()
+        project = kumi_state.project_dir(payload)
+        kumi = kumi_state.state_dir(project, cfg)
+        if not os.path.isdir(kumi):
+            return 0  # kumi not in use in this project
 
-    handoff_path = os.path.join(kumi, cfg["files"]["handoff"])
-    handoff = ""
-    if os.path.isfile(handoff_path):
+        handoff_path = os.path.join(kumi, cfg["files"]["handoff"])
+        handoff = ""
+        if os.path.isfile(handoff_path):
+            try:
+                with open(handoff_path, encoding="utf-8") as f:
+                    handoff = f.read()
+            except OSError:
+                handoff = ""
+
+        # Collect every decision file the roles wrote. Store paths relative to
+        # the state dir so the log reads the same no matter where the project
+        # lives.
+        decisions = []
+        decisions_dir = os.path.join(kumi, cfg["dirs"]["decisions"])
+        if os.path.isdir(decisions_dir):
+            for root, _dirs, files in os.walk(decisions_dir):
+                for name in files:
+                    if name.endswith(".md"):
+                        decisions.append(
+                            os.path.relpath(os.path.join(root, name), kumi)
+                        )
+        decisions.sort()
+
+        if not handoff.strip() and not decisions:
+            return 0  # nothing worth remembering yet
+
+        memory_dir = os.path.join(kumi, cfg["dirs"]["memory"])
         try:
-            with open(handoff_path, encoding="utf-8") as f:
-                handoff = f.read()
+            os.makedirs(memory_dir, exist_ok=True)
         except OSError:
-            handoff = ""
+            return 0
 
-    # Collect every decision file the roles wrote. Store paths relative to the
-    # state dir so the log reads the same no matter where the project lives.
-    decisions = []
-    decisions_dir = os.path.join(kumi, cfg["dirs"]["decisions"])
-    if os.path.isdir(decisions_dir):
-        for root, _dirs, files in os.walk(decisions_dir):
-            for name in files:
-                if name.endswith(".md"):
-                    decisions.append(
-                        os.path.relpath(os.path.join(root, name), kumi)
+        # Fingerprint the current state. If it matches the last capture, the
+        # project hasn't changed since the previous stop, so there is nothing
+        # new to log.
+        signature = hashlib.sha256(
+            "\n".join([handoff] + decisions).encode("utf-8")
+        ).hexdigest()
+        sig_path = os.path.join(memory_dir, cfg["memory"]["signature"])
+        try:
+            if os.path.isfile(sig_path):
+                with open(sig_path, encoding="utf-8") as f:
+                    if f.read().strip() == signature:
+                        return 0  # state unchanged since last capture
+        except OSError:
+            pass
+
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        parts = [f"\n## {stamp}\n"]
+        if decisions:
+            parts.append("\nDecisions on record:\n")
+            parts.extend(f"- {rel}\n" for rel in decisions)
+        if handoff.strip():
+            parts.append("\nHandoff at completion:\n\n```\n")
+            parts.append(handoff.rstrip() + "\n```\n")
+
+        log_path = os.path.join(memory_dir, cfg["memory"]["log"])
+        try:
+            first = not os.path.isfile(log_path)
+            with open(log_path, "a", encoding="utf-8") as f:
+                if first:
+                    f.write(
+                        "# kumi memory\n\n"
+                        "Append-only record of finished work, captured "
+                        "automatically when an agent stops. Nothing here is "
+                        "overwritten.\n"
                     )
-    decisions.sort()
+                f.write("".join(parts))
+            with open(sig_path, "w", encoding="utf-8") as f:
+                f.write(signature)
+        except OSError:
+            return 0
 
-    if not handoff.strip() and not decisions:
-        return 0  # nothing worth remembering yet
-
-    memory_dir = os.path.join(kumi, cfg["dirs"]["memory"])
-    try:
-        os.makedirs(memory_dir, exist_ok=True)
-    except OSError:
         return 0
-
-    # Fingerprint the current state. If it matches the last capture, the project
-    # hasn't changed since the previous stop, so there is nothing new to log.
-    signature = hashlib.sha256(
-        "\n".join([handoff] + decisions).encode("utf-8")
-    ).hexdigest()
-    sig_path = os.path.join(memory_dir, cfg["memory"]["signature"])
-    try:
-        if os.path.isfile(sig_path):
-            with open(sig_path, encoding="utf-8") as f:
-                if f.read().strip() == signature:
-                    return 0  # state unchanged since last capture
-    except OSError:
-        pass
-
-    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    parts = [f"\n## {stamp}\n"]
-    if decisions:
-        parts.append("\nDecisions on record:\n")
-        parts.extend(f"- {rel}\n" for rel in decisions)
-    if handoff.strip():
-        parts.append("\nHandoff at completion:\n\n```\n")
-        parts.append(handoff.rstrip() + "\n```\n")
-
-    log_path = os.path.join(memory_dir, cfg["memory"]["log"])
-    try:
-        first = not os.path.isfile(log_path)
-        with open(log_path, "a", encoding="utf-8") as f:
-            if first:
-                f.write(
-                    "# kumi memory\n\n"
-                    "Append-only record of finished work, captured automatically "
-                    "when an agent stops. Nothing here is overwritten.\n"
-                )
-            f.write("".join(parts))
-        with open(sig_path, "w", encoding="utf-8") as f:
-            f.write(signature)
-    except OSError:
+    except Exception:
         return 0
-
-    return 0
 
 
 if __name__ == "__main__":
