@@ -1,0 +1,8 @@
+# CI-only tooling — NOT a runtime dependency of the kumi plugin itself.
+# kumi remains stdlib-only at runtime (see README.md "Configuration").
+# These are installed only by CI (lint, coverage jobs in .github/workflows/ci.yml)
+# and, optionally, by a contributor who wants local checks to match CI exactly
+# (see DEVELOPMENT.md).
+ruff==0.16.7
+coverage==7.16.1
+pymarkdownlnt==0.9.40

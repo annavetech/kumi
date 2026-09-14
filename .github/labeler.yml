@@ -1,0 +1,31 @@
+area/skills:
+  - changed-files:
+      - any-glob-to-any-file: ["skills/**"]
+
+area/agents:
+  - changed-files:
+      - any-glob-to-any-file: ["agents/**"]
+
+area/hooks:
+  - changed-files:
+      - any-glob-to-any-file: ["hooks/**"]
+
+area/scripts:
+  - changed-files:
+      - any-glob-to-any-file: ["scripts/**"]
+
+area/tests:
+  - changed-files:
+      - any-glob-to-any-file: ["tests/**", "evals/**"]
+
+area/docs:
+  - changed-files:
+      - any-glob-to-any-file: ["docs/**", "examples/**", "*.md", "skills/README.md"]
+
+area/config:
+  - changed-files:
+      - any-glob-to-any-file: ["config/**", "template/**", ".claude-plugin/**"]
+
+area/ci:
+  - changed-files:
+      - any-glob-to-any-file: [".github/**"]

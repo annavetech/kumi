@@ -1,0 +1,30 @@
+# CODEOWNERS — reviewed by GitHub on every PR that touches a matched path.
+# Auto-requests review; does NOT gate merge (see the merge-gate section of
+# .kumi/decisions/kai/repo-automation.md for why: a solo maintainer cannot
+# review their own PR, so this is never turned into a required review).
+
+# Default owner for anything not matched below.
+*                       @annaveretennykova
+
+# Specialists and their generated subagents.
+/skills/                @annaveretennykova
+/agents/                @annaveretennykova
+
+# Runtime: hooks, shared-state layout, the agent generator.
+/hooks/                 @annaveretennykova
+/scripts/               @annaveretennykova
+/config/                @annaveretennykova
+
+# Tests and routing evals.
+/tests/                 @annaveretennykova
+/evals/                 @annaveretennykova
+
+# Docs and onboarding.
+/docs/                  @annaveretennykova
+/examples/              @annaveretennykova
+/template/              @annaveretennykova
+*.md                    @annaveretennykova
+
+# Plugin packaging and repo automation.
+/.claude-plugin/        @annaveretennykova
+/.github/               @annaveretennykova

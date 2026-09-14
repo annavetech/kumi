@@ -1,0 +1,14 @@
+[run]
+branch = True
+parallel = True
+omit =
+    */__pycache__/*
+
+[report]
+show_missing = True
+skip_empty = True
+include =
+    */hooks/*
+    */scripts/*
+    */tests/*
+    */evals/*

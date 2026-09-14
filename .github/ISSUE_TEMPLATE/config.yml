@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/annavetech/kumi/security/advisories/new
+    about: Do not open a public issue for security reports; see SECURITY.md.
+  - name: Ask a question about contributing
+    url: https://github.com/annavetech/kumi/blob/main/CONTRIBUTING.md
+    about: General questions about the contribution process.

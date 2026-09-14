@@ -28,7 +28,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-from validate_skills import check_skill, load_contract, CONTRACT  # noqa: E402
+from validate_skills import CONTRACT, check_skill, load_contract  # noqa: E402
 
 PASS, FAIL = 0, 0
 
@@ -136,7 +136,10 @@ def test_negative_cases(contract):
         ),
         (
             "sections out of order",
-            VALID_SKILL.replace("## Anti-Pattern: \"shortcut\"", "## Tone\n\nMoved up.\n\n## Anti-Pattern: \"shortcut\""),
+            VALID_SKILL.replace(
+                "## Anti-Pattern: \"shortcut\"",
+                "## Tone\n\nMoved up.\n\n## Anti-Pattern: \"shortcut\"",
+            ),
             "out of order",
         ),
     ]
@@ -260,19 +263,35 @@ def test_ensure_state_creates_on_kumi_call():
         ),
         (
             "creates dir on kumi skill",
-            {"hook_event_name": "PreToolUse", "tool_name": "Skill", "tool_input": {"skill": "kumi:eero"}},
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Skill",
+                "tool_input": {"skill": "kumi:eero"},
+            },
         ),
         (
             "creates dir on kumi agent",
-            {"hook_event_name": "PreToolUse", "tool_name": "Agent", "tool_input": {"subagent_type": "kumi:eero"}},
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Agent",
+                "tool_input": {"subagent_type": "kumi:eero"},
+            },
         ),
         (
             "creates dir on kumi Task (older name)",
-            {"hook_event_name": "PreToolUse", "tool_name": "Task", "tool_input": {"subagent_type": "kumi:eero"}},
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Task",
+                "tool_input": {"subagent_type": "kumi:eero"},
+            },
         ),
         (
             "creates dir on kumi command via UserPromptExpansion",
-            {"hook_event_name": "UserPromptExpansion", "expansion_type": "slash_command", "command_name": "kumi:eero"},
+            {
+                "hook_event_name": "UserPromptExpansion",
+                "expansion_type": "slash_command",
+                "command_name": "kumi:eero",
+            },
         ),
     ]
     for label, extra in cases:
@@ -284,7 +303,11 @@ def test_ensure_state_creates_on_kumi_call():
             if r.returncode == 0 and os.path.isdir(kumi_dir) and r.stdout == "":
                 ok(label)
             else:
-                bad(label, f"rc={r.returncode} exists={os.path.isdir(kumi_dir)} stdout={r.stdout!r} stderr={r.stderr}")
+                bad(
+                    label,
+                    f"rc={r.returncode} exists={os.path.isdir(kumi_dir)} "
+                    f"stdout={r.stdout!r} stderr={r.stderr}",
+                )
         finally:
             shutil.rmtree(project, ignore_errors=True)
 
@@ -297,19 +320,35 @@ def test_ensure_state_non_kumi_call_is_noop():
         ),
         (
             "does nothing on non-kumi skill",
-            {"hook_event_name": "PreToolUse", "tool_name": "Skill", "tool_input": {"skill": "other-skill"}},
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Skill",
+                "tool_input": {"skill": "other-skill"},
+            },
         ),
         (
             "does nothing on non-kumi agent",
-            {"hook_event_name": "PreToolUse", "tool_name": "Agent", "tool_input": {"subagent_type": "other-agent"}},
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Agent",
+                "tool_input": {"subagent_type": "other-agent"},
+            },
         ),
         (
             "does nothing on unrelated tool",
-            {"hook_event_name": "PreToolUse", "tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Edit",
+                "tool_input": {"file_path": "x.py"},
+            },
         ),
         (
             "does nothing on non-kumi command via UserPromptExpansion",
-            {"hook_event_name": "UserPromptExpansion", "expansion_type": "slash_command", "command_name": "other-skill"},
+            {
+                "hook_event_name": "UserPromptExpansion",
+                "expansion_type": "slash_command",
+                "command_name": "other-skill",
+            },
         ),
     ]
     for label, payload in cases:
@@ -321,13 +360,18 @@ def test_ensure_state_non_kumi_call_is_noop():
             if r.returncode == 0 and not os.path.isdir(kumi_dir) and r.stdout == "":
                 ok(label)
             else:
-                bad(label, f"rc={r.returncode} exists={os.path.isdir(kumi_dir)} stdout={r.stdout!r} stderr={r.stderr}")
+                bad(
+                    label,
+                    f"rc={r.returncode} exists={os.path.isdir(kumi_dir)} "
+                    f"stdout={r.stdout!r} stderr={r.stderr}",
+                )
         finally:
             shutil.rmtree(project, ignore_errors=True)
 
 
 def test_ensure_state_empty_or_malformed_stdin():
-    for label, raw in [("does nothing on empty stdin", ""), ("does nothing on malformed stdin", "not json")]:
+    cases = [("does nothing on empty stdin", ""), ("does nothing on malformed stdin", "not json")]
+    for label, raw in cases:
         r = subprocess.run(
             [sys.executable, os.path.join(ROOT, "hooks", "ensure_state.py")],
             input=raw, capture_output=True, text=True,
@@ -341,7 +385,11 @@ def test_ensure_state_empty_or_malformed_stdin():
 def test_ensure_state_idempotent():
     project = tempfile.mkdtemp()
     try:
-        payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui do it", "cwd": project}
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": project,
+        }
         r1 = run_ensure_state(payload)
         r2 = run_ensure_state(payload)
         kumi_dir = os.path.join(project, ".kumi")
@@ -358,25 +406,39 @@ def test_ensure_state_kumi_state_dir_env():
     state = tempfile.mkdtemp()
     absolute_target = os.path.join(state, "elsewhere")
     try:
-        payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui do it", "cwd": project}
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": project,
+        }
         r = run_ensure_state(payload, env_extra={"KUMI_STATE_DIR": absolute_target})
         if r.returncode == 0 and os.path.isdir(absolute_target):
             ok("honours an absolute KUMI_STATE_DIR")
         else:
-            bad("honours an absolute KUMI_STATE_DIR", f"rc={r.returncode} exists={os.path.isdir(absolute_target)}")
+            bad(
+                "honours an absolute KUMI_STATE_DIR",
+                f"rc={r.returncode} exists={os.path.isdir(absolute_target)}",
+            )
     finally:
         shutil.rmtree(project, ignore_errors=True)
         shutil.rmtree(state, ignore_errors=True)
 
     project = tempfile.mkdtemp()
     try:
-        payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui do it", "cwd": project}
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": project,
+        }
         r = run_ensure_state(payload, env_extra={"KUMI_STATE_DIR": "mystate"})
         target = os.path.join(project, "mystate")
         if r.returncode == 0 and os.path.isdir(target):
             ok("honours a relative KUMI_STATE_DIR")
         else:
-            bad("honours a relative KUMI_STATE_DIR", f"rc={r.returncode} exists={os.path.isdir(target)}")
+            bad(
+                "honours a relative KUMI_STATE_DIR",
+                f"rc={r.returncode} exists={os.path.isdir(target)}",
+            )
     finally:
         shutil.rmtree(project, ignore_errors=True)
 
@@ -385,7 +447,11 @@ def test_ensure_state_git_exclude():
     project = tempfile.mkdtemp()
     try:
         os.makedirs(os.path.join(project, ".git"))  # a git work tree, no repo needed for this check
-        payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui do it", "cwd": project}
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": project,
+        }
         run_ensure_state(payload)
         run_ensure_state(payload)  # run twice: the entry must not duplicate
 
@@ -410,7 +476,11 @@ def test_ensure_state_non_string_cwd_falls_back():
     for label, bad_cwd in cases:
         project = tempfile.mkdtemp()
         try:
-            payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui hi", "cwd": bad_cwd}
+            payload = {
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": "/kumi:yui hi",
+                "cwd": bad_cwd,
+            }
             r = run_ensure_state(payload, proc_cwd=project)
             kumi_dir = os.path.join(project, ".kumi")
             if r.returncode == 0 and os.path.isdir(kumi_dir) and r.stdout == "":
@@ -418,7 +488,8 @@ def test_ensure_state_non_string_cwd_falls_back():
             else:
                 bad(
                     f"non-string cwd ({label}) exits 0, falls back to the real cwd",
-                    f"rc={r.returncode} exists={os.path.isdir(kumi_dir)} stdout={r.stdout!r} stderr={r.stderr}",
+                    f"rc={r.returncode} exists={os.path.isdir(kumi_dir)} "
+                    f"stdout={r.stdout!r} stderr={r.stderr}",
                 )
         finally:
             shutil.rmtree(project, ignore_errors=True)
@@ -433,7 +504,11 @@ def test_ensure_state_non_utf8_exclude_file():
         with open(exclude_path, "wb") as f:
             f.write(original)
 
-        payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui do it", "cwd": project}
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": project,
+        }
         r = run_ensure_state(payload)
 
         with open(exclude_path, "rb") as f:
@@ -441,12 +516,14 @@ def test_ensure_state_non_utf8_exclude_file():
 
         added_once = after.count(b".kumi/\n") == 1
         preserved = after.startswith(original)
+        msg = "non-UTF-8 .git/info/exclude does not crash, entry added once, bytes preserved"
         if r.returncode == 0 and added_once and preserved:
-            ok("non-UTF-8 .git/info/exclude does not crash, entry added once, existing bytes preserved")
+            ok(msg)
         else:
             bad(
-                "non-UTF-8 .git/info/exclude does not crash, entry added once, existing bytes preserved",
-                f"rc={r.returncode} added_once={added_once} preserved={preserved} stderr={r.stderr}",
+                msg,
+                f"rc={r.returncode} added_once={added_once} "
+                f"preserved={preserved} stderr={r.stderr}",
             )
     finally:
         shutil.rmtree(project, ignore_errors=True)
@@ -456,8 +533,12 @@ def test_ensure_state_git_as_file_skips_exclude():
     project = tempfile.mkdtemp()
     try:
         with open(os.path.join(project, ".git"), "w", encoding="utf-8") as f:
-            f.write("gitdir: /somewhere/worktrees/x\n")  # worktree/submodule marker file, not a directory
-        payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui do it", "cwd": project}
+            f.write("gitdir: /somewhere/worktrees/x\n")  # worktree/submodule marker file
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": project,
+        }
         r = run_ensure_state(payload)
         kumi_dir = os.path.join(project, ".kumi")
         exclude_path = os.path.join(project, ".git", "info", "exclude")
@@ -466,7 +547,8 @@ def test_ensure_state_git_as_file_skips_exclude():
         else:
             bad(
                 ".git as a file skips the exclude step and still exits 0",
-                f"rc={r.returncode} kumi_exists={os.path.isdir(kumi_dir)} exclude_exists={os.path.exists(exclude_path)}",
+                f"rc={r.returncode} kumi_exists={os.path.isdir(kumi_dir)} "
+                f"exclude_exists={os.path.exists(exclude_path)}",
             )
     finally:
         shutil.rmtree(project, ignore_errors=True)
