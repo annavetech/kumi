@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "area/ci"]
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      ci-tooling:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "area/ci"]
+    commit-message:
+      prefix: "ci"

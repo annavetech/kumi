@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a new capability, a new specialist, or a change to an existing one.
+title: "[feature]: "
+labels: ["kind/enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: input
+    id: touches
+    attributes:
+      label: Which specialist(s) or area does this touch?
+      description: e.g. "a new eero checklist item", "a new stack trio", "yui routing"
+    validations:
+      required: false

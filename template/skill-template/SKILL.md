@@ -4,7 +4,7 @@ description: "<what this role does, in a plain sentence with the words a user wo
 metadata:
   role: <Role Title>
   domain: <Go | Angular | iOS | Ops | ...>
-  when-to-use: <one line: the situation this role is for>
+  when-to-use: "<one line: the situation this role is for>"
   hands-off-to: [<name>, <name>]
 ---
 

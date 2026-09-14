@@ -11,10 +11,12 @@ kumi is a framework, so adding a specialist is uniform and mechanical. Every ski
 2. **Register it with the coordinator.** Add one row to the team table in `skills/yui/SKILL.md` (name, `/command`, what it handles) and, if relevant, a routing rule. This is the only place the coordinator learns about a specialist, it never hardcodes them anywhere else.
 
 3. **Generate its subagent and run the checks.**
+
    ```bash
    python3 scripts/build_agents.py   # writes agents/<name>.md from your skill
    python3 tests/run_tests.py        # validator, evals, agent check, negatives
    ```
+
    The generator produces the subagent form so the specialist ships both ways. The test suite confirms the skill has valid frontmatter and every required section in order, that the routing eval is coherent, and that `agents/` matches the skills. A new specialist that passes is a valid specialist.
 
 That is the whole process. You do not touch any other specialist, and you do not change the coordinator's logic, only its role table. You also do not write the subagent by hand; it is generated from the skill.

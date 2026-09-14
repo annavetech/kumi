@@ -23,8 +23,10 @@ A feature that spans design, build, and review. You hand it to the coordinator a
 **3. mart reviews before merge.**
 
 > Read-only pass against the handoff. Findings, ranked:
+>
 > 1. (medium) `limit=0` falls through to returning everything, clamp to a default.
 > 2. (low) the cursor error path returns 500; a malformed cursor is a client error, so 400 fits better.
+>
 > No security or concurrency issues. Otherwise consistent with the existing handlers.
 
 **yui relays** the ranked findings back to you. You decide whether to send the two fixes back to `jaan` or ship as is.

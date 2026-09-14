@@ -43,7 +43,12 @@ def scan_transcript(path):
     tracking the earliest and latest timestamps. Best-effort: unknown shapes are
     skipped rather than raising.
     """
-    totals = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+    totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+    }
     first_ts = last_ts = None
     agent = None
     try:

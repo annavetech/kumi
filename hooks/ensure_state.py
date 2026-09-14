@@ -136,7 +136,7 @@ def main():
             return 0
 
         cfg = kumi_state.load()
-        project = kumi_state.project_dir(payload)  # missing or malformed cwd falls back to os.getcwd()
+        project = kumi_state.project_dir(payload)  # malformed cwd falls back to os.getcwd()
         kumi = kumi_state.state_dir(project, cfg)
 
         os.makedirs(kumi, exist_ok=True)

@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in kumi is broken or behaves differently than documented.
+title: "[bug]: "
+labels: ["kind/bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The exact command, prompt, skill, or subagent you invoked.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - "skills (a specific specialist)"
+        - "agents (generated subagents)"
+        - "hooks (memory / observability / shared state)"
+        - "scripts (build_agents.py)"
+        - "tests / evals"
+        - "docs"
+        - "other"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Claude Code version, OS, and kumi version (see .claude-plugin/plugin.json).
+    validations:
+      required: false
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else?
+    validations:
+      required: false

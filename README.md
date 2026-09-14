@@ -147,16 +147,19 @@ Nothing else changes. The coordinator only knows the role table, and no speciali
 ```
 /yui build a REST endpoint that lists projects, with tests
 ```
+
 yui routes: `kai` designs the shape, `jaan` implements, `mart` reviews.
 
 ```
 /anu this pytest fails with a KeyError in the parser
 ```
+
 anu reproduces, finds the root cause, states the fix, applies it, and verifies.
 
 ```
 /aki review the orders dashboard before I ship it
 ```
+
 aki returns a ranked, read-only findings list.
 
 ## Read more

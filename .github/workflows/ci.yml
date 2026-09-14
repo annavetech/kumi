@@ -6,12 +6,67 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
+      - name: Install CI-only tooling
+        run: python3 -m pip install -r requirements.txt
+      - name: Enable coverage for subprocesses
+        run: |
+          python3 -c "
+          import sysconfig, pathlib
+          p = pathlib.Path(sysconfig.get_path('purelib')) / 'coverage_subprocess.pth'
+          p.write_text('import coverage; coverage.process_startup()\n')
+          "
       # Runs the whole suite: the skill validator, the routing eval check, the
       # agents-in-sync check, and the negative cases (malformed skills rejected,
-      # hooks never fail). Standard library only, so there is nothing to install.
-      - name: Run the kumi test suite
-        run: python3 tests/run_tests.py
+      # hooks never fail). Standard library only at runtime, so the suite
+      # itself needs nothing installed beyond the coverage tooling above.
+      #
+      # COVERAGE_FILE is set explicitly (in addition to COVERAGE_PROCESS_START)
+      # because test_hooks_never_fail runs several hooks as subprocesses with
+      # their own working directory (a disposable temp dir, matching a real
+      # hook invocation). coverage.py resolves .coveragerc's own relative
+      # `include`/`omit` globs and, if `source` were set, its `source` entries
+      # too, against each *process's own* cwd, not the repo root — with a
+      # relative `source` list, a subprocess started in that disposable temp
+      # dir would find no "hooks" directory there and silently drop all of
+      # its own measured lines. Two changes make measurement cwd-independent:
+      # .coveragerc uses `[report] include` (matched at report time against
+      # the recorded file paths) instead of `[run] source` (matched at trace
+      # time against the process's cwd), and COVERAGE_FILE is an absolute
+      # path so every process's data file lands in the same place regardless
+      # of its own working directory.
+      - name: Run the kumi test suite under coverage
+        env:
+          COVERAGE_PROCESS_START: ${{ github.workspace }}/.coveragerc
+          COVERAGE_FILE: ${{ github.workspace }}/.coverage
+        run: |
+          coverage run --rcfile=.coveragerc tests/run_tests.py
+          coverage combine
+          coverage report --rcfile=.coveragerc --fail-under=60
+
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install -r requirements.txt
+      - run: ruff check hooks scripts tests evals .github/scripts
+
+  lint-markdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install -r requirements.txt
+      # pull_request_template.md is excluded on purpose: GitHub renders it
+      # inside the "Open a pull request" form, which already has its own
+      # title field, so the template intentionally starts at ## rather than
+      # a redundant top-level heading (MD041).
+      - run: pymarkdown --config .pymarkdown.json scan -r . -e .github/pull_request_template.md

@@ -1,0 +1,56 @@
+{
+  "description": "The single source of truth for every label in annavetech/kumi. .github/scripts/sync_labels.py makes the repo's labels match this file exactly: creates missing ones, updates color/description on mismatched ones, deletes ones not listed here. Edit this file, not the repo's label list directly.",
+  "labels": [
+    {"name": "kind/bug", "color": "d73a4a", "description": "A behavior that is wrong relative to what the docs or code promise."},
+    {"name": "kind/enhancement", "color": "a2eeef", "description": "A new capability or an improvement to an existing one."},
+    {"name": "kind/cleanup", "color": "cfd3d7", "description": "Refactor, rename, or remove without changing behavior."},
+    {"name": "kind/documentation", "color": "0075ca", "description": "Docs-only change: README, docs/, examples, or a skill's prose."},
+    {"name": "kind/question", "color": "d876e3", "description": "A question, not yet a confirmed bug or a proposed change."},
+
+    {"name": "priority/p0", "color": "b60205", "description": "Drop everything: broken for every user, or a security issue."},
+    {"name": "priority/p1", "color": "d93f0b", "description": "Should land in the next release."},
+    {"name": "priority/p2", "color": "fbca04", "description": "Worth doing, no fixed timeline."},
+    {"name": "priority/p3", "color": "c5def5", "description": "Nice to have."},
+
+    {"name": "status/needs-triage", "color": "ededed", "description": "Not yet looked at by a maintainer."},
+    {"name": "status/needs-info", "color": "fef2c0", "description": "Waiting on the reporter for more detail."},
+    {"name": "status/design", "color": "5319e7", "description": "Needs a kai spec before implementation starts."},
+    {"name": "status/in-progress", "color": "0e8a16", "description": "Actively being worked on."},
+    {"name": "status/needs-review", "color": "1d76db", "description": "Implementation done, waiting on review."},
+    {"name": "status/blocked", "color": "444444", "description": "Cannot proceed until something else resolves."},
+
+    {"name": "size/XS", "color": "c2e0c6", "description": "Fewer than 10 lines changed."},
+    {"name": "size/S", "color": "9ccc65", "description": "10-29 lines changed."},
+    {"name": "size/M", "color": "66bb6a", "description": "30-99 lines changed."},
+    {"name": "size/L", "color": "43a047", "description": "100-499 lines changed."},
+    {"name": "size/XL", "color": "2e7d32", "description": "500-999 lines changed."},
+    {"name": "size/XXL", "color": "1b5e20", "description": "1000 or more lines changed."},
+
+    {"name": "area/skills", "color": "bfd4f2", "description": "skills/"},
+    {"name": "area/agents", "color": "bfd4f2", "description": "agents/ (generated — see scripts/build_agents.py)"},
+    {"name": "area/hooks", "color": "bfd4f2", "description": "hooks/ (memory, observability, shared state)"},
+    {"name": "area/scripts", "color": "bfd4f2", "description": "scripts/ (the plugin's own tooling, e.g. build_agents.py)"},
+    {"name": "area/tests", "color": "bfd4f2", "description": "tests/ and evals/"},
+    {"name": "area/docs", "color": "bfd4f2", "description": "docs/, examples/, and root-level *.md"},
+    {"name": "area/config", "color": "bfd4f2", "description": "config/, template/, .claude-plugin/"},
+    {"name": "area/ci", "color": "bfd4f2", "description": ".github/ — workflows and repo automation"},
+
+    {"name": "do-not-merge/hold", "color": "b60205", "description": "Blocks merge until removed. Set by /hold, cleared by /unhold."},
+    {"name": "do-not-merge/work-in-progress", "color": "e99695", "description": "Not ready for review or merge yet."},
+
+    {"name": "lgtm", "color": "c2e0c6", "description": "Looks good to me. Set by /lgtm from someone with write access."},
+    {"name": "approved", "color": "0e8a16", "description": "Approved to merge. Set by /approve from someone with write access. With lgtm and no do-not-merge/*, the merge gate passes."},
+
+    {"name": "ok-to-test", "color": "1d76db", "description": "CI is authorized to run for this PR. Set by /ok-to-test from a maintainer."},
+    {"name": "needs-ok-to-test", "color": "fbca04", "description": "Opened by an account without write access; a maintainer must comment /ok-to-test."},
+
+    {"name": "good first issue", "color": "7057ff", "description": "A reasonable starting point for a new contributor."},
+    {"name": "help wanted", "color": "008672", "description": "Extra attention or a contributor is wanted."},
+    {"name": "duplicate", "color": "cfd3d7", "description": "Already reported or requested elsewhere."},
+    {"name": "invalid", "color": "e4e669", "description": "Doesn't apply, or not enough information to act on."},
+    {"name": "wontfix", "color": "ffffff", "description": "Will not be worked on."},
+
+    {"name": "dependencies", "color": "0366d6", "description": "A Dependabot-opened update."},
+    {"name": "stale", "color": "e0e0e0", "description": "No activity for 60 days; will close in 7 more unless it changes."}
+  ]
+}
