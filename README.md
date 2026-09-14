@@ -177,6 +177,10 @@ aki returns a ranked, read-only findings list.
 - [evals/](evals/): the routing set the team is tested against.
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
 
+If kumi is useful to you, you can [sponsor it on GitHub](https://github.com/sponsors/annaveretennykova).
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+The kumi logo in [assets/brand](assets/brand) is not covered by the MIT License. It may be shared unchanged but not modified, see [assets/brand/LICENSE.md](assets/brand/LICENSE.md).
