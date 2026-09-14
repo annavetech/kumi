@@ -39,7 +39,7 @@
     {"name": "do-not-merge/work-in-progress", "color": "e99695", "description": "Not ready for review or merge yet."},
 
     {"name": "lgtm", "color": "c2e0c6", "description": "Looks good to me. Set by /lgtm from someone with write access."},
-    {"name": "approved", "color": "0e8a16", "description": "Approved to merge. Set by /approve from someone with write access. With lgtm and no do-not-merge/*, the merge gate passes."},
+    {"name": "approved", "color": "0e8a16", "description": "Approved to merge. Set by /approve (write access). With lgtm and no do-not-merge/*, gate passes."},
 
     {"name": "ok-to-test", "color": "1d76db", "description": "CI is authorized to run for this PR. Set by /ok-to-test from a maintainer."},
     {"name": "needs-ok-to-test", "color": "fbca04", "description": "Opened by an account without write access; a maintainer must comment /ok-to-test."},
