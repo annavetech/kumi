@@ -69,16 +69,26 @@ def remove_label(repo, number, label):
     return status, response
 
 
-def add_reaction(repo, comment_id, content):
-    """React to an issue comment (e.g. content="+1")."""
-    return github_request(
-        "POST", f"/repos/{repo}/issues/comments/{comment_id}/reactions", {"content": content}
-    )
-
-
 def post_comment(repo, number, body):
     """Post a new comment on an issue or PR."""
     return github_request("POST", f"/repos/{repo}/issues/{number}/comments", {"body": body})
+
+
+def set_commit_status(repo, sha, state, description, context="merge-gate"):
+    """Post a commit status. Returns (status, json).
+
+    state is one of GitHub's four values ("pending", "success", "error",
+    "failure"); merge_gate.py only ever posts "pending" or "success" — see
+    its own docstring for why a PR waiting on labels is "pending", not a
+    failure. description is shown next to the status in the PR's checks
+    list; GitHub truncates it, so callers must keep it within the
+    documented 140-character limit themselves.
+    """
+    return github_request(
+        "POST",
+        f"/repos/{repo}/statuses/{sha}",
+        {"state": state, "description": description, "context": context},
+    )
 
 
 def add_assignees(repo, number, assignees):
@@ -109,13 +119,23 @@ def is_authorized(repo, username):
     return actor_permission(repo, username) in ("admin", "write")
 
 
-def report_if_error(context, status, ignore=()):
-    """Print a non-2xx status to stderr. Never raises, never fails the job.
+def report_if_error(context, status, body=None, ignore=()):
+    """Print a non-2xx status (and GitHub's own error message) to stderr.
+
+    Never raises, never fails the job.
 
     Callers that discard the (status, json) tuple from the helpers above
     were silently swallowing failed API calls (e.g. a labels POST that 403s
     because permissions: was wrong). This makes that visible in the job log
     without turning it into a hard failure.
+
+    body is the json response from the same call (or None): when it carries
+    a "message" (GitHub's standard error field, e.g. "Resource not
+    accessible by integration"), that is printed too, since the status code
+    alone doesn't say which permission was missing. Never print body.get
+    output for a 2xx status, and never the request's own headers or token —
+    GitHub's error bodies don't echo the Authorization header, but callers
+    must not start passing raw headers/tokens in here either.
 
     ignore lists status codes that are expected/tolerated for this call and
     must not be reported (e.g. remove_label's documented 404 "already gone"
@@ -123,4 +143,8 @@ def report_if_error(context, status, ignore=()):
     still reported.
     """
     if status not in ignore and not (200 <= status < 300):
-        print(f"{context}: unexpected status {status}", file=sys.stderr)
+        message = body.get("message") if isinstance(body, dict) else None
+        if message:
+            print(f"{context}: unexpected status {status}: {message}", file=sys.stderr)
+        else:
+            print(f"{context}: unexpected status {status}", file=sys.stderr)

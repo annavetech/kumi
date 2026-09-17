@@ -31,7 +31,6 @@ sys.path.insert(0, HERE)
 
 from _github import (  # noqa: E402
     add_labels,
-    add_reaction,
     is_authorized,
     post_comment,
     remove_label,
@@ -56,68 +55,60 @@ def parse_command(body):
     return None
 
 
-def handle_lgtm(repo, pr_number, actor, comment_id):
+def handle_lgtm(repo, pr_number, actor):
     if not is_authorized(repo, actor):
-        status, _ = post_comment(repo, pr_number, "`/lgtm` can only be run by a maintainer.")
-        report_if_error("post_comment(/lgtm rejection)", status)
+        status, body = post_comment(repo, pr_number, "`/lgtm` can only be run by a maintainer.")
+        report_if_error("post_comment(/lgtm rejection)", status, body)
         return
-    status, _ = add_labels(repo, pr_number, ["lgtm"])
-    report_if_error("add_labels(lgtm)", status)
-    status, _ = add_reaction(repo, comment_id, "+1")
-    report_if_error("add_reaction(+1)", status)
+    status, body = add_labels(repo, pr_number, ["lgtm"])
+    report_if_error("add_labels(lgtm)", status, body)
 
 
-def handle_approve(repo, pr_number, actor, comment_id):
+def handle_approve(repo, pr_number, actor):
     if not is_authorized(repo, actor):
-        status, _ = post_comment(repo, pr_number, "`/approve` can only be run by a maintainer.")
-        report_if_error("post_comment(/approve rejection)", status)
+        status, body = post_comment(repo, pr_number, "`/approve` can only be run by a maintainer.")
+        report_if_error("post_comment(/approve rejection)", status, body)
         return
-    status, _ = add_labels(repo, pr_number, ["approved"])
-    report_if_error("add_labels(approved)", status)
-    status, _ = add_reaction(repo, comment_id, "+1")
-    report_if_error("add_reaction(+1)", status)
+    status, body = add_labels(repo, pr_number, ["approved"])
+    report_if_error("add_labels(approved)", status, body)
 
 
-def handle_hold(repo, pr_number, actor, comment_id, author):
+def handle_hold(repo, pr_number, actor, author):
     if not (is_authorized(repo, actor) or actor == author):
-        status, _ = post_comment(
+        status, body = post_comment(
             repo, pr_number, "`/hold` can only be run by a maintainer or the PR's own author."
         )
-        report_if_error("post_comment(/hold rejection)", status)
+        report_if_error("post_comment(/hold rejection)", status, body)
         return
-    status, _ = add_labels(repo, pr_number, ["do-not-merge/hold"])
-    report_if_error("add_labels(do-not-merge/hold)", status)
-    status, _ = add_reaction(repo, comment_id, "+1")
-    report_if_error("add_reaction(+1)", status)
+    status, body = add_labels(repo, pr_number, ["do-not-merge/hold"])
+    report_if_error("add_labels(do-not-merge/hold)", status, body)
 
 
-def handle_unhold(repo, pr_number, actor, comment_id, author):
+def handle_unhold(repo, pr_number, actor, author):
     if not (is_authorized(repo, actor) or actor == author):
-        status, _ = post_comment(
+        status, body = post_comment(
             repo, pr_number, "`/unhold` can only be run by a maintainer or the PR's own author."
         )
-        report_if_error("post_comment(/unhold rejection)", status)
+        report_if_error("post_comment(/unhold rejection)", status, body)
         return
-    status, _ = remove_label(repo, pr_number, "do-not-merge/hold")
-    report_if_error("remove_label(do-not-merge/hold)", status, ignore=(404,))
-    status, _ = add_reaction(repo, comment_id, "+1")
-    report_if_error("add_reaction(+1)", status)
+    status, body = remove_label(repo, pr_number, "do-not-merge/hold")
+    report_if_error("remove_label(do-not-merge/hold)", status, body, ignore=(404,))
 
 
-def handle_ok_to_test(repo, pr_number, actor, comment_id, author):
+def handle_ok_to_test(repo, pr_number, actor, author):
     # Deliberately excludes the "or actor == author" fallback that /hold and
     # /unhold use above: an untrusted PR's own author must never be able to
     # authorize its own CI run. This is the whole safety property of §13/§14.
     if not is_authorized(repo, actor):
-        status, _ = post_comment(repo, pr_number, "`/ok-to-test` can only be run by a maintainer.")
-        report_if_error("post_comment(/ok-to-test rejection)", status)
+        status, body = post_comment(
+            repo, pr_number, "`/ok-to-test` can only be run by a maintainer."
+        )
+        report_if_error("post_comment(/ok-to-test rejection)", status, body)
         return
-    status, _ = remove_label(repo, pr_number, "needs-ok-to-test")
-    report_if_error("remove_label(needs-ok-to-test)", status, ignore=(404,))
-    status, _ = add_labels(repo, pr_number, ["ok-to-test"])
-    report_if_error("add_labels(ok-to-test)", status)
-    status, _ = add_reaction(repo, comment_id, "+1")
-    report_if_error("add_reaction(+1)", status)
+    status, body = remove_label(repo, pr_number, "needs-ok-to-test")
+    report_if_error("remove_label(needs-ok-to-test)", status, body, ignore=(404,))
+    status, body = add_labels(repo, pr_number, ["ok-to-test"])
+    report_if_error("add_labels(ok-to-test)", status, body)
 
 
 COMMANDS = {
@@ -139,14 +130,13 @@ def main():
         repo = os.environ["GITHUB_REPOSITORY"]
         pr_number = event["issue"]["number"]
         actor = event["comment"]["user"]["login"]
-        comment_id = event["comment"]["id"]
         author = event["issue"]["user"]["login"]
 
         handler = COMMANDS[command]
         if command in ("/hold", "/unhold", "/ok-to-test"):
-            handler(repo, pr_number, actor, comment_id, author)
+            handler(repo, pr_number, actor, author)
         else:
-            handler(repo, pr_number, actor, comment_id)
+            handler(repo, pr_number, actor)
         return 0
     except Exception as e:
         print(f"chat-ops: skipping, {e}", file=sys.stderr)

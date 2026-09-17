@@ -5,6 +5,15 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 ## [Unreleased]
 
 - Added sora, a DevOps specialist for containers, CI/CD, infrastructure as code and deploys.
+- Added repository automation: code owners, auto-assign, chat commands (`/lgtm`, `/approve`, `/hold`, `/unhold`, `/ok-to-test`), a label taxonomy with sync, and security settings for outside contributors.
+- Fixed: the `approved` label's description was too long for label sync to apply.
+- Added the kumi logo, brand assets, and a sponsor link.
+- enn's kill commands now list the target and confirm before sending a signal, instead of piping straight into `kill -9` or `pkill -f`.
+- `claude plugin validate` (and `--strict`) now runs in CI, pinned to an exact, checksum-verified CLI version.
+- Documented the CI scripts: the fail-open vs fail-closed split, and where `report_if_error` comes from.
+- The merge gate now reports a pending commit status while waiting on labels, instead of failing the check.
+- Fixed: `/lgtm` and `/approve` could not add labels or react to a comment (the chat-ops workflow was missing `pull-requests: write`), and API errors now show GitHub's own error message.
+- Automation no longer posts emoji reactions or emoji summary comments on pull requests.
 
 ## [1.1.0] - 2026-09-14
 
