@@ -88,6 +88,7 @@ Call the coordinator to route work, or any specialist directly.
 |------|------|------|
 | **kai** | `/kai` | Architect, for any stack |
 | **enn** | `/enn` | Process manager |
+| **sora** | `/sora` | DevOps/infra specialist |
 
 The names are short on purpose. Once you know the team you call them the way you would call a colleague: `/jaan, add the endpoint`, `/mart, review it`, `/siim, this test is failing`.
 

@@ -2,6 +2,10 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+- Added sora, a DevOps specialist for containers, CI/CD, infrastructure as code and deploys.
+
 ## [1.1.0] - 2026-09-14
 
 - The `.kumi` state directory is now created automatically the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent), through a new `hooks/ensure_state.py` hook on `UserPromptSubmit`, `UserPromptExpansion`, and `PreToolUse`. Previously nothing created it, so a project's memory, logging, and metrics hooks stayed silent until someone made the directory by hand.

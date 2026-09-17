@@ -51,6 +51,7 @@ ROLE_TOOLS = {
     "reviewer": ["Read", "Bash", "Glob", "Grep"],
     "architect": ["Read", "Write", "Glob", "Grep"],
     "data": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
+    "devops": ["Read", "Edit", "Write", "Bash", "Glob", "Grep"],
     "ops": ["Bash", "Read", "Glob"],
 }
 ROLE_COLOR = {
@@ -59,6 +60,7 @@ ROLE_COLOR = {
     "reviewer": "blue",
     "architect": "purple",
     "data": "cyan",
+    "devops": "red",
     "ops": "yellow",
 }
 
@@ -99,6 +101,8 @@ def role_kind(role):
         return "architect"
     if "sql" in r:  # covers "SQL Specialist" and "NoSQL Specialist"
         return "data"
+    if "devops" in r or "infra" in r:
+        return "devops"
     if "process" in r or "ops" in r:
         return "ops"
     return "implementer"
