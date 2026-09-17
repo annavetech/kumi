@@ -17,8 +17,11 @@ Exit codes:
 Standard library only.
 """
 
+import contextlib
+import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -27,13 +30,28 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SCRIPTS_DIR = os.path.join(ROOT, "scripts")
+GITHUB_SCRIPTS_DIR = os.path.join(ROOT, ".github", "scripts")
 sys.path.insert(0, HERE)
 sys.path.insert(0, SCRIPTS_DIR)
+sys.path.insert(0, GITHUB_SCRIPTS_DIR)
 
+from _github import report_if_error  # noqa: E402
 from build_agents import role_kind  # noqa: E402
+from merge_gate import MAX_DESCRIPTION_LENGTH, decide_state  # noqa: E402
 from validate_skills import CONTRACT, check_skill, load_contract  # noqa: E402
 
 PASS, FAIL = 0, 0
+
+# Anna's rule: no automation process may ever produce an emoji. Pictographs,
+# misc symbols, dingbats, and the variation-selector-16 that turns a plain
+# glyph into its emoji-presentation form.
+EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F300-\U0001FAFF"  # misc symbols and pictographs through extended-A
+    "\U00002600-\U000027BF"  # misc symbols, dingbats
+    "\U0000FE0F"  # variation selector-16 (emoji presentation)
+    "]"
+)
 
 
 def ok(name):
@@ -174,6 +192,181 @@ def test_role_kind_devops_before_ops():
             ok(f"role_kind({role!r}) == {expect!r}")
         else:
             bad(f"role_kind({role!r}) == {expect!r}", f"got {got!r}")
+
+
+def test_chat_ops_workflow_permissions():
+    # A PR comment's `issue_number` resolves to a pull request, and adding a
+    # label or reacting to that comment via GITHUB_TOKEN 403s with only
+    # `issues: write` — GitHub requires `pull-requests: write` too (see
+    # workflow-syntax's own example: "pull-requests: write permits an action
+    # to add a label to a pull request"). Both runs of chat-ops on PR #6
+    # (2026-09-17) 403'd on add_labels and add_reaction for exactly this
+    # reason. Guard the workflow-level permissions block against regressing.
+    path = os.path.join(ROOT, ".github", "workflows", "chat-ops.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    perms_block = text.split("jobs:", 1)[0]
+    required = ("issues: write", "pull-requests: write")
+    missing = [perm for perm in required if perm not in perms_block]
+    if missing:
+        bad("chat-ops workflow grants issues:write and pull-requests:write", f"missing: {missing}")
+    else:
+        ok("chat-ops workflow grants issues:write and pull-requests:write")
+
+
+def test_report_if_error_prints_github_message():
+    message = "Resource not accessible by integration"
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        report_if_error("add_labels(approved)", 403, {"message": message})
+    output = stderr.getvalue()
+    name = "report_if_error prints GitHub's error message, not just the status"
+    if "403" in output and message in output:
+        ok(name)
+    else:
+        bad(name, f"got: {output!r}")
+
+
+def test_report_if_error_ignores_expected_status():
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        report_if_error("remove_label(x)", 404, {"message": "Not Found"}, ignore=(404,))
+    if stderr.getvalue() == "":
+        ok("report_if_error stays silent on an ignored status")
+    else:
+        bad("report_if_error stays silent on an ignored status", f"got: {stderr.getvalue()!r}")
+
+
+def test_merge_gate_decide_state():
+    cases = [
+        (set(), "pending", "Needs approved, lgtm labels"),
+        ({"lgtm"}, "pending", "Needs approved label"),
+        ({"approved"}, "pending", "Needs lgtm label"),
+        ({"lgtm", "approved"}, "success", "lgtm and approved; not held"),
+        ({"lgtm", "approved", "do-not-merge/hold"}, "pending", "Blocked by do-not-merge/hold"),
+        ({"do-not-merge/hold"}, "pending", "Blocked by do-not-merge/hold"),
+        (
+            {"lgtm", "do-not-merge/hold", "do-not-merge/work-in-progress"},
+            "pending",
+            "Blocked by do-not-merge/hold, do-not-merge/work-in-progress",
+        ),
+    ]
+    for labels, expect_state, expect_desc in cases:
+        state, desc = decide_state(labels)
+        name = f"decide_state({sorted(labels)!r}) == ({expect_state!r}, {expect_desc!r})"
+        if state == expect_state and desc == expect_desc:
+            ok(name)
+        else:
+            bad(name, f"got ({state!r}, {desc!r})")
+
+
+def test_merge_gate_description_length_capped():
+    # A defensive cap, not a realistic input: confirms an unusual pile-up of
+    # do-not-merge/* labels can never produce a status GitHub would reject.
+    holds = {f"do-not-merge/a-fairly-long-reason-{i}" for i in range(20)}
+    state, desc = decide_state(holds)
+    name = "decide_state caps description at GitHub's 140-character limit"
+    if state == "pending" and len(desc) <= MAX_DESCRIPTION_LENGTH:
+        ok(name)
+    else:
+        bad(name, f"len={len(desc)} desc={desc!r}")
+
+
+def test_merge_gate_workflow_permissions():
+    path = os.path.join(ROOT, ".github", "workflows", "merge-gate.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    perms_block = text.split("jobs:", 1)[0]
+    name = "merge-gate workflow grants only contents:read and statuses:write"
+    required = ("contents: read", "statuses: write")
+    missing = [perm for perm in required if perm not in perms_block]
+    forbidden = ("contents: write", "issues: write", "pull-requests: write")
+    over_broad = [perm for perm in forbidden if perm in perms_block]
+    if missing or over_broad:
+        bad(name, f"missing={missing} over_broad={over_broad}")
+    else:
+        ok(name)
+
+
+def test_merge_gate_job_named_apart_from_status_context():
+    # The job id (and its check-run name) must differ from the "merge-gate"
+    # commit-status context merge_gate.py posts, or the two are impossible
+    # to tell apart in branch protection's required-checks list.
+    path = os.path.join(ROOT, ".github", "workflows", "merge-gate.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    name = "merge-gate job id differs from the merge-gate status context it posts"
+    if "merge-gate-status:" in text and "\n  merge-gate:\n" not in text:
+        ok(name)
+    else:
+        bad(name, "job id collides with (or is missing from) the status context name")
+
+
+def test_merge_gate_never_checks_out_pr_head():
+    # pull_request_target hands the job a write-capable token; it must only
+    # read the event payload, never check out or run the PR's own code.
+    path = os.path.join(ROOT, ".github", "workflows", "merge-gate.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    name = "merge-gate never checks out the PR's own head ref"
+    if "ref:" not in text:
+        ok(name)
+    else:
+        bad(name, "found an explicit checkout ref in a pull_request_target workflow")
+
+
+def test_validate_claude_manifest_job_pins_checksum_safely():
+    # Findings from ivo's review of the validate-claude-manifest job: (1) the
+    # comment must never claim a signature that doesn't exist — the job only
+    # ever checks a sha256 checksum; (2) nothing may be piped straight to a
+    # shell, and the sha256 it checks against must be a literal pinned in the
+    # repo, not fetched from the same origin as the binary at run time.
+    path = os.path.join(ROOT, ".github", "workflows", "ci.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    job_marker = "\n  validate-claude-manifest:\n"
+    if job_marker not in text:
+        bad("validate-claude-manifest job pins a sha256 literal safely", "job not found in ci.yml")
+        return
+    job_text = text[text.index(job_marker):]
+
+    problems = []
+    if not re.search(r'"[a-f0-9]{64}"', job_text):
+        problems.append("no 64-hex sha256 literal found")
+    if re.search(r"curl[^\n|]*\|\s*bash", job_text):
+        problems.append("pipes curl output straight to bash")
+    if re.search(r"(?i)gpg|signed", job_text):
+        problems.append("claims a signature ('GPG'/'signed') the job does not verify")
+
+    name = "validate-claude-manifest job pins a sha256 literal safely"
+    if problems:
+        bad(name, "; ".join(problems))
+    else:
+        ok(name)
+
+
+def test_no_emoji_under_github():
+    result = subprocess.run(
+        ["git", "-C", ROOT, "ls-files", ".github"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        bad("no emoji under .github", f"git ls-files failed: {result.stderr}")
+        return
+    offenders = []
+    for rel_path in result.stdout.splitlines():
+        path = os.path.join(ROOT, rel_path)
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except (UnicodeDecodeError, OSError):
+            continue
+        if EMOJI_PATTERN.search(text):
+            offenders.append(rel_path)
+    if offenders:
+        bad("no emoji under .github", f"emoji found in: {offenders}")
+    else:
+        ok("no emoji under .github")
 
 
 def run(script, *args):
@@ -584,6 +777,16 @@ def main():
     test_positive_valid_sample(contract)
     test_negative_cases(contract)
     test_role_kind_devops_before_ops()
+    test_chat_ops_workflow_permissions()
+    test_report_if_error_prints_github_message()
+    test_report_if_error_ignores_expected_status()
+    test_merge_gate_decide_state()
+    test_merge_gate_description_length_capped()
+    test_merge_gate_workflow_permissions()
+    test_merge_gate_job_named_apart_from_status_context()
+    test_merge_gate_never_checks_out_pr_head()
+    test_validate_claude_manifest_job_pins_checksum_safely()
+    test_no_emoji_under_github()
     test_all_real_skills_pass()
     test_eval_cases_pass()
     test_agents_up_to_date()

@@ -1,4 +1,4 @@
-name: merge-gate
+name: merge-gate-status
 
 on:
   pull_request_target:
@@ -6,11 +6,21 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
-  merge-gate:
+  # Named apart from the `merge-gate` commit-status context this job posts
+  # (merge_gate.py), so this job's own check run can never be confused with
+  # the status that actually gates the merge. This job itself always ends
+  # green once it can read the event payload and post a status; see
+  # DEVELOPMENT.md's "How the CI scripts fail" for why.
+  merge-gate-status:
     runs-on: ubuntu-latest
     steps:
+      # pull_request_target: only the event payload already delivered with
+      # the trigger is read below (labels, head sha) — no checkout of the
+      # PR's own code, and no use of the elevated token against anything
+      # other than posting a commit status.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
@@ -18,3 +28,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 .github/scripts/merge_gate.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

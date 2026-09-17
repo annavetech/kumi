@@ -70,3 +70,72 @@ jobs:
       # title field, so the template intentionally starts at ## rather than
       # a redundant top-level heading (MD041).
       - run: pymarkdown --config .pymarkdown.json scan -r . -e .github/pull_request_template.md
+
+  validate-claude-manifest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # Spike (eero, 2026-09-17): the installer at claude.ai/install.sh is not
+      # needed at all — downloads.claude.ai serves the plain linux-x64 binary
+      # directly at /$VERSION/linux-x64/claude (the same file install.sh's
+      # own download_file/$platform/claude call fetches), and that binary
+      # runs `claude plugin validate` on its own with no `claude install`
+      # step, no login, API key, or network auth: confirmed locally by
+      # downloading the darwin-arm64 build of this exact version, skipping
+      # `install` entirely, and running `plugin validate` (twice, once
+      # `--strict`) with HOME pointed at an empty directory and no
+      # credentials present. That means nothing is ever piped to a shell,
+      # and nothing runs before its own hash is checked: the file below is
+      # downloaded straight to disk, its sha256 is compared against the
+      # literal pinned in CLAUDE_CODE_LINUX_X64_SHA256, and only a match
+      # makes it executable. This checks that the downloaded bytes match
+      # what Anthropic published at that URL for this version — a checksum,
+      # not a signature; it says nothing about who produced those bytes.
+      - name: Install claude CLI (pinned, checksum-verified)
+        env:
+          CLAUDE_CODE_VERSION: "2.1.273"
+          # sha256 of the linux-x64 binary for CLAUDE_CODE_VERSION, i.e. of
+          # https://downloads.claude.ai/claude-code-releases/2.1.273/linux-x64/claude.
+          # Recorded 2026-09-17 from that version's
+          # https://downloads.claude.ai/claude-code-releases/2.1.273/manifest.json
+          # (platforms.linux-x64.checksum), and cross-checked by independently
+          # downloading the binary above and running sha256sum on it — both
+          # agreed. To bump CLAUDE_CODE_VERSION: fetch the new version's
+          # manifest.json, copy platforms.linux-x64.checksum into this literal,
+          # then independently re-download the new version's linux-x64 binary
+          # and re-hash it locally to confirm the two still agree before
+          # trusting either.
+          CLAUDE_CODE_LINUX_X64_SHA256: "6c752e2cc7c110c9df15f26d8d134d438c5ae95dbd610efc1a308bf7f9c5f6c1"
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/claude"
+          curl -fsSL -o "$bin" "https://downloads.claude.ai/claude-code-releases/$CLAUDE_CODE_VERSION/linux-x64/claude"
+          actual=$(sha256sum "$bin" | cut -d' ' -f1)
+          if [ "$actual" != "$CLAUDE_CODE_LINUX_X64_SHA256" ]; then
+            echo "claude $CLAUDE_CODE_VERSION checksum mismatch: expected $CLAUDE_CODE_LINUX_X64_SHA256, got $actual" >&2
+            exit 1
+          fi
+          chmod +x "$bin"
+          mkdir -p "$HOME/.local/bin"
+          mv "$bin" "$HOME/.local/bin/claude"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # "." validates .claude-plugin/marketplace.json and, because kumi lists
+      # itself as a plugins[] entry with source "./", the same run also
+      # validates plugin.json — but a marketplace-mode run never opens the
+      # skill or agent files themselves (confirmed in Anthropic's own docs
+      # and by this spike), so ./skills and ./agents get their own runs to
+      # actually cover every SKILL.md and agents/*.md frontmatter.
+      - name: Validate the plugin and marketplace manifests
+        run: |
+          claude plugin validate .
+          claude plugin validate ./skills
+          claude plugin validate ./agents
+      - name: Validate the plugin and marketplace manifests (strict)
+        run: |
+          claude plugin validate . --strict
+          claude plugin validate ./skills --strict
+          claude plugin validate ./agents --strict
