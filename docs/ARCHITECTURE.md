@@ -80,5 +80,6 @@ Specialists come in a few consistent shapes, which is why the team reads as cohe
 - **Data specialists** (saku for SQL, remo for NoSQL): model and change data with the smallest safe change. Single roles, because a database does not need a full trio.
 - **Coordinator** (yui): routes only.
 - **Cross-cutting** (enn): process management.
+- **DevOps/infra** (sora): Dockerfiles, CI/CD, and infrastructure as code; shows the plan and confirms before applying, deploying, or destroying anything.
 
-Every language area is the same implement/debug/review trio, so the extensibility is visible in the roster itself: adding a stack is adding one more trio of the same three shapes. The architect, the process manager, and the data specialists sit outside the trios as cross-cutting or single roles that serve all of them.
+Every language area is the same implement/debug/review trio, so the extensibility is visible in the roster itself: adding a stack is adding one more trio of the same three shapes. The architect, the process manager, the data specialists, and the DevOps/infra specialist sit outside the trios as cross-cutting or single roles that serve all of them.

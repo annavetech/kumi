@@ -29,7 +29,7 @@ Every specialist is one of three shapes, and they stay consistent within a shape
 - **Debuggers** (siim, kadi, shu): reproduce first, find the root cause, touch only the broken path, verify the failure is gone.
 - **Reviewers** (mart, tiiu, ryo): read-only, checklist-driven, findings ranked by severity, never edit.
 
-Plus the **coordinator** (yui) which only routes, and cross-cutting roles like the **process manager** (enn).
+Plus the **coordinator** (yui) which only routes, and cross-cutting roles like the **architect** (kai), the **process manager** (enn), and the **DevOps/infra specialist** (sora).
 
 When you add a new stack (say Python), the natural shape is a new implement/debug/review trio that mirrors the existing ones. That consistency is the point: someone who knows how `jaan`/`siim`/`mart` relate already knows how a new trio relates.
 

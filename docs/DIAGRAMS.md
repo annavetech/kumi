@@ -52,6 +52,7 @@ graph TD
     subgraph XC[Cross-cutting]
         kai[kai, architect, any stack]
         enn[enn, process manager]
+        sora[sora, DevOps/infra]
     end
 ```
 

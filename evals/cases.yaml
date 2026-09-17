@@ -70,6 +70,11 @@ cases:
     expect: enn
     why: starting/stopping/inspecting processes and ports
 
+  # DevOps / infra.
+  - prompt: "write a Dockerfile for this Go service and a GitHub Actions workflow to build and push the image"
+    expect: sora
+    why: Dockerfile and CI/CD pipeline work, DevOps/infra's job
+
   # Python: implementer, debugger, reviewer.
   - prompt: "add a Python function that parses the CSV and returns typed rows"
     expect: eero

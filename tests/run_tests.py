@@ -26,8 +26,11 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+SCRIPTS_DIR = os.path.join(ROOT, "scripts")
 sys.path.insert(0, HERE)
+sys.path.insert(0, SCRIPTS_DIR)
 
+from build_agents import role_kind  # noqa: E402
 from validate_skills import CONTRACT, check_skill, load_contract  # noqa: E402
 
 PASS, FAIL = 0, 0
@@ -153,6 +156,24 @@ def test_negative_cases(contract):
                 bad(f"rejects: {label}", f"expected '{expect}', got {problems}")
         finally:
             os.remove(path)
+
+
+def test_role_kind_devops_before_ops():
+    # "DevOps Specialist" contains the substring "ops", so the devops branch
+    # must be checked before the process/ops branch or it would misclassify
+    # into enn's kind (no Edit/Write), leaving sora unable to write its own
+    # Dockerfiles and workflow files.
+    cases = [
+        ("DevOps Specialist", "devops"),
+        ("Infra Specialist", "devops"),
+        ("Process Manager", "ops"),
+    ]
+    for role, expect in cases:
+        got = role_kind(role)
+        if got == expect:
+            ok(f"role_kind({role!r}) == {expect!r}")
+        else:
+            bad(f"role_kind({role!r}) == {expect!r}", f"got {got!r}")
 
 
 def run(script, *args):
@@ -562,6 +583,7 @@ def main():
         return 2
     test_positive_valid_sample(contract)
     test_negative_cases(contract)
+    test_role_kind_devops_before_ops()
     test_all_real_skills_pass()
     test_eval_cases_pass()
     test_agents_up_to_date()

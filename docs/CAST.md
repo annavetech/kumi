@@ -4,7 +4,7 @@ The specialists have short names on purpose, so you can call them the way you wo
 
 ## The coordinator
 
-**yui**, Japanese 結, "to tie together." The right name for the one who binds the team. yui listens to what you need and hands it to the person for the job. It never writes code, fixes a bug, or reviews; it routes, tracks the shared state, and relays what comes back. Calm and decisive, and firmly unwilling to do someone else's job.
+**yui**, Japanese 結, "to tie together". The right name for the one who binds the team. yui listens to what you need and hands it to the person for the job. It never writes code, fixes a bug, or reviews; it routes, tracks the shared state, and relays what comes back. Calm and decisive, and firmly unwilling to do someone else's job.
 
 ## Go
 
@@ -24,36 +24,38 @@ The specialists have short names on purpose, so you can call them the way you wo
 
 ## iOS
 
-**ren**, Japanese 蓮, "lotus." Builds to Apple's Human Interface Guidelines and respects the design system rather than hardcoding around it.
+**ren**, Japanese 蓮, "lotus". Builds to Apple's Human Interface Guidelines and respects the design system rather than hardcoding around it.
 
-**shu**, Japanese 修, "discipline, mastery." Finds the force-unwrap or the retain cycle behind a crash that surfaced somewhere else entirely.
+**shu**, Japanese 修, "discipline, mastery". Finds the force-unwrap or the retain cycle behind a crash that surfaced somewhere else entirely.
 
-**ryo**, Japanese 良, "good, clear." Guards memory safety and the guidelines before an App Store run.
+**ryo**, Japanese 良, "good, clear". Guards memory safety and the guidelines before an App Store run.
 
 ## Python
 
 **eero**, Estonian and Finnish, from Erik. Type hints where the project uses them, and no surprises.
 
-**anu**, Estonian, "grace." Reproduces the traceback and fixes the cause, not the symptom.
+**anu**, Estonian, "grace". Reproduces the traceback and fixes the cause, not the symptom.
 
 **ivo**, a short European name. Reads for correctness, for security, and for the exception someone swallowed.
 
 ## React
 
-**noa**, a short name that means "movement." Correct hooks, clean effects, no needless re-renders.
+**noa**, a short name that means "movement". Correct hooks, clean effects, no needless re-renders.
 
 **rui**, Japanese. Chases the stale closure and the bad dependency array to the actual cause.
 
-**aki**, Japanese 秋, "autumn," also read as "bright." Watches re-renders and accessibility as closely as correctness.
+**aki**, Japanese 秋, "autumn", also read as "bright". Watches re-renders and accessibility as closely as correctness.
 
 ## Data
 
-**saku**, Japanese 咲, "to bloom." Reads the schema before writing a migration and treats every migration as if it runs on production, because one day it will.
+**saku**, Japanese 咲, "to bloom". Reads the schema before writing a migration and treats every migration as if it runs on production, because one day it will.
 
-**remo**, a short name that means "oar." Models around the way the data is read and written, not around normalized instinct.
+**remo**, a short name that means "oar". Models around the way the data is read and written, not around normalized instinct.
 
 ## Cross-cutting
 
-**kai**, a short name that means "sea." The architect for any stack. Designs and specs before code, and hands the plan to whoever builds it. Would rather spend an afternoon on the design than a week undoing the wrong one.
+**kai**, a short name that means "sea". The architect for any stack. Designs and specs before code, and hands the plan to whoever builds it. Would rather spend an afternoon on the design than a week undoing the wrong one.
 
 **enn**, Estonian. Starts things, stops things, and frees the port that is somehow still held. Stays out of the code and keeps the machinery running.
+
+**sora**, Japanese 空, "sky". Evokes cloud infrastructure. Shows the plan before touching anything real, and never skips the confirmation on a deploy or a destroy. Builds the pipeline once, correctly, rather than patching it under pressure at release time.

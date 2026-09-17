@@ -34,16 +34,17 @@ Call the coordinator to route work, or call any specialist directly by name.
 | **saku** | `/saku` | Specialist | Relational schema, queries, and safe migrations | [saku/SKILL.md](saku/SKILL.md) |
 | **remo** | `/remo` | Specialist | Document and key-value modeling and access patterns | [remo/SKILL.md](remo/SKILL.md) |
 | **enn**  | `/enn`  | Process manager | Starts, stops, and inspects dev servers and ports | [enn/SKILL.md](enn/SKILL.md) |
+| **sora** | `/sora` | DevOps/infra | Dockerfiles, CI/CD, and infrastructure as code, safe by default | [sora/SKILL.md](sora/SKILL.md) |
 
 ## The three shapes
 
-Most specialists are one of three shapes, and they stay consistent within a shape across stacks. This is why the team reads as coherent instead of twenty unrelated prompts.
+Most specialists are one of three shapes, and they stay consistent within a shape across stacks. This is why the team reads as coherent instead of a pile of unrelated prompts.
 
 - **Implementers** (`jaan`, `liis`, `ren`, `eero`, `noa`), read context first, work from a spec, make the smallest correct change, verify.
 - **Debuggers** (`siim`, `kadi`, `shu`, `anu`, `rui`), reproduce first, find the root cause, touch only the broken path, verify the failure is gone.
 - **Reviewers** (`mart`, `tiiu`, `ryo`, `ivo`, `aki`), read-only, checklist-driven, findings ranked by severity, never edit.
 
-Every language area is the same trio, and nothing more. The rest are cross-cutting single roles that serve all of them: the **coordinator** (`yui`), which only routes; the **architect** (`kai`), which specs work before code for any stack; the **data specialists** (`saku` for SQL, `remo` for NoSQL); and the **process manager** (`enn`). Databases are single specialists on purpose, because they do not need a full trio.
+Every language area is the same trio, and nothing more. The rest are cross-cutting single roles that serve all of them: the **coordinator** (`yui`), which only routes; the **architect** (`kai`), which specs work before code for any stack; the **data specialists** (`saku` for SQL, `remo` for NoSQL); the **process manager** (`enn`); and the **DevOps/infra specialist** (`sora`). Databases are single specialists on purpose, because they do not need a full trio.
 
 Learn how `jaan` / `siim` / `mart` relate for Go, and you already know how each other stack's trio relates: `liis` / `kadi` / `tiiu` for Angular, `ren` / `shu` / `ryo` for iOS, `eero` / `anu` / `ivo` for Python, `noa` / `rui` / `aki` for React. A new stack is a new trio of the same three shapes.
 
