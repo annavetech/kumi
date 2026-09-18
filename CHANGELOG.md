@@ -14,6 +14,11 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - The merge gate now reports a pending commit status while waiting on labels, instead of failing the check.
 - Fixed: `/lgtm` and `/approve` could not add labels or react to a comment (the chat-ops workflow was missing `pull-requests: write`), and API errors now show GitHub's own error message.
 - Automation no longer posts emoji reactions or emoji summary comments on pull requests.
+- `yui` now asks a clarifying question when a request is vague, and explains the plan in plain language before dispatching.
+- The README now opens with a one-line call to action, followed by a short "See it work" example placed before the specialist roster.
+- Added two more worked examples: asking for something in plain words, and handing over a whole feature that's already scoped across two stacks.
+- The README now states which stacks kumi covers today, and that the roster can be extended.
+- The specialist roster is now framed as reference material you can read later, not something you need before calling `/yui`.
 
 ## [1.1.0] - 2026-09-14
 

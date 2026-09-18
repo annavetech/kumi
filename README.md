@@ -10,6 +10,8 @@ _A coordinated engineering team that remembers._
 
 ![CI](https://github.com/annavetech/kumi/actions/workflows/ci.yml/badge.svg)
 
+**Call `/yui`, describe what you want, and the team does it.**
+
 **kumi** (組, "a team") gives you a full engineering team as named specialists, and it does one thing most agent setups do not: it remembers your project between sessions. Work does not start cold every time. What the team decided and where it left off is captured when a session ends and brought back when the next one starts.
 
 Call **yui**, the coordinator, to route a task to the right specialist or run a feature end to end, or call any specialist directly by name when you already know who you need.
@@ -24,6 +26,16 @@ In Claude Code:
 claude plugin marketplace add annavetech/kumi
 claude plugin install kumi@kumi
 ```
+
+## See it work
+
+```
+/yui build a REST endpoint that lists projects, with tests
+```
+
+`yui` reads the request, sees it spans design, build, and review, and routes: `kai` designs the shape, `jaan` implements it with tests, `mart` reviews before merge, all without you naming any of them. You get a ranked, read-only review back, and decide what ships. Full transcript: [examples/build-an-endpoint.md](examples/build-an-endpoint.md).
+
+The table below is for when you want to call a specialist directly, or you're just curious who's on the team.
 
 ## Meet the team
 
@@ -94,6 +106,8 @@ The names are short on purpose. Once you know the team you call them the way you
 
 Every specialist ships two ways. As a **skill** you invoke by name in your session, and as a **subagent** that runs in its own context. The skill is the source of truth; the subagent is generated from it, so the two never drift.
 
+kumi's roster today covers Go, Angular, iOS, Python, React, SQL, NoSQL, architecture for any stack, process management, and DevOps/infra. It does not yet have dedicated specialists for docs, Node/TypeScript backends, Java, C#/.NET, Rust, or Android/Kotlin — each implementer folds its own testing into its own checklist rather than handing off to a separate test-writing role. The roster is deliberately curated, not exhaustive, and it grows the same mechanical way every time: see [docs/WALKTHROUGH-ADD-PHP-AGENT.md](docs/WALKTHROUGH-ADD-PHP-AGENT.md) for a full worked example of adding one yourself.
+
 ## How it works
 
 The coordinator (`yui`) reads a role table and dispatches to the right specialist. It never does the work itself. For a feature that spans design, build, and review, `yui` sequences the specialists (for example `kai` designs, `jaan` builds, `mart` reviews) and passes context between them through a shared handoff.
@@ -162,6 +176,18 @@ anu reproduces, finds the root cause, states the fix, applies it, and verifies.
 ```
 
 aki returns a ranked, read-only findings list.
+
+```
+/yui I want a button on my site that lets people sign up for updates by email
+```
+
+yui asks what it needs, states the plan in plain language, then runs it.
+
+```
+/yui add a paginated Go endpoint for recent activity and a React panel for it, with tests and review
+```
+
+yui confirms once, then sequences kai, jaan, noa, mart, and aki.
 
 ## Read more
 

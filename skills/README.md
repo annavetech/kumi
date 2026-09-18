@@ -10,7 +10,7 @@ A specialist is one skill file. It carries a trigger-oriented description (so it
 
 ## The roster
 
-Call the coordinator to route work, or call any specialist directly by name.
+Call the coordinator to route work, or call any specialist directly by name. You never need to memorize this roster to get started; it's here for reference and for calling a specialist directly.
 
 | Name | Call | Shape | Role | Skill |
 |------|------|-------|------|-------|
