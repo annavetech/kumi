@@ -1,16 +1,6 @@
 #!/usr/bin/env python3
 """kumi needs-ok-to-test label (pull_request_target: opened).
-
-The visible half of §14's two-layer hold on outside contributors' CI: the
-real gate is the native repo setting (Settings -> Actions -> General ->
-Fork pull request workflows -> "Require approval for all outside
-collaborators"), applied by Anna, not by this script. This script only adds
-the needs-ok-to-test label when the PR's author does not already have write
-access, so the PR list shows which PRs are waiting. A maintainer's /ok-to-test
-comment (chat_commands.py) removes it.
-
-Standard library only.
-"""
+Adds the label when a PR's author lacks write access; a maintainer's /ok-to-test removes it."""
 
 import json
 import os

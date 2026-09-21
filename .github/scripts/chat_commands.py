@@ -1,26 +1,6 @@
 #!/usr/bin/env python3
 """kumi chat-ops (issue_comment: created, restricted to PR comments).
-
-Recognizes one bare command per comment, on its first non-blank line:
-/lgtm, /approve, /hold, /unhold, /ok-to-test. Everything else is left alone.
-
-Authorization model (see .kumi/decisions/kai/repo-automation.md §0.5/§3):
-a solo maintainer cannot review their own PR under GitHub's native rules, so
-merge is gated on labels this script sets, not on a native review. /lgtm and
-/approve are deliberately reachable by the PR's own author (that is the
-entire point for a solo maintainer). /hold and /unhold are reachable by the
-author too (holding your own WIP is normal and only blocks merge, it grants
-nothing). /ok-to-test is the one command that must NEVER be reachable by the
-PR's own author: it is what authorizes an untrusted PR's own CI run, so only
-someone who already has write access to the repo may run it.
-
-Never raises past main(): unexpected API errors are caught, logged to
-stderr, and this exits 0 regardless — a bug here must never turn into a red,
-blocking check on someone's PR (unlike the merge gate, which is supposed to
-block).
-
-Standard library only.
-"""
+Handles /lgtm, /approve, /hold, /unhold, /ok-to-test; only /ok-to-test excludes the PR's author."""
 
 import json
 import os
@@ -31,11 +11,14 @@ sys.path.insert(0, HERE)
 
 from _github import (  # noqa: E402
     add_labels,
+    get_pull_request,
     is_authorized,
     post_comment,
     remove_label,
     report_if_error,
+    set_commit_status,
 )
+from merge_gate import decide_state  # noqa: E402
 
 
 def load_event():
@@ -55,6 +38,19 @@ def parse_command(body):
     return None
 
 
+def refresh_merge_gate_status(repo, pr_number):
+    """Recompute and post the merge-gate status against the PR's current head, fetched live."""
+    status, pr = get_pull_request(repo, pr_number)
+    if not (200 <= status < 300) or not isinstance(pr, dict):
+        report_if_error("get_pull_request(refresh_merge_gate_status)", status, pr)
+        return
+    labels = {label["name"] for label in pr["labels"]}
+    sha = pr["head"]["sha"]
+    state, description = decide_state(labels)
+    status, body = set_commit_status(repo, sha, state, description)
+    report_if_error("set_commit_status(refresh_merge_gate_status)", status, body)
+
+
 def handle_lgtm(repo, pr_number, actor):
     if not is_authorized(repo, actor):
         status, body = post_comment(repo, pr_number, "`/lgtm` can only be run by a maintainer.")
@@ -62,6 +58,8 @@ def handle_lgtm(repo, pr_number, actor):
         return
     status, body = add_labels(repo, pr_number, ["lgtm"])
     report_if_error("add_labels(lgtm)", status, body)
+    if 200 <= status < 300:
+        refresh_merge_gate_status(repo, pr_number)
 
 
 def handle_approve(repo, pr_number, actor):
@@ -71,6 +69,8 @@ def handle_approve(repo, pr_number, actor):
         return
     status, body = add_labels(repo, pr_number, ["approved"])
     report_if_error("add_labels(approved)", status, body)
+    if 200 <= status < 300:
+        refresh_merge_gate_status(repo, pr_number)
 
 
 def handle_hold(repo, pr_number, actor, author):
@@ -82,6 +82,8 @@ def handle_hold(repo, pr_number, actor, author):
         return
     status, body = add_labels(repo, pr_number, ["do-not-merge/hold"])
     report_if_error("add_labels(do-not-merge/hold)", status, body)
+    if 200 <= status < 300:
+        refresh_merge_gate_status(repo, pr_number)
 
 
 def handle_unhold(repo, pr_number, actor, author):
@@ -93,12 +95,12 @@ def handle_unhold(repo, pr_number, actor, author):
         return
     status, body = remove_label(repo, pr_number, "do-not-merge/hold")
     report_if_error("remove_label(do-not-merge/hold)", status, body, ignore=(404,))
+    if 200 <= status < 300 or status == 404:
+        refresh_merge_gate_status(repo, pr_number)
 
 
 def handle_ok_to_test(repo, pr_number, actor, author):
-    # Deliberately excludes the "or actor == author" fallback that /hold and
-    # /unhold use above: an untrusted PR's own author must never be able to
-    # authorize its own CI run. This is the whole safety property of §13/§14.
+    # No "or actor == author" fallback: the PR's own author must never authorize its own CI run.
     if not is_authorized(repo, actor):
         status, body = post_comment(
             repo, pr_number, "`/ok-to-test` can only be run by a maintainer."

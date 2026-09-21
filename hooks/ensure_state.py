@@ -1,34 +1,6 @@
 #!/usr/bin/env python3
-"""kumi state-directory bootstrap hook (UserPromptSubmit, PreToolUse,
-UserPromptExpansion).
-
-Every other kumi hook stays silent unless a .kumi directory already exists,
-but nothing ever created that directory: a project where kumi is called for
-the first time produced no logs, memory, or metrics. This hook creates the
-state directory the moment kumi is actually called: a `/kumi:` slash command
-typed by the user (UserPromptSubmit), a kumi skill invoked by name
-(UserPromptExpansion, on `command_name`), or a kumi subagent (matched on
-tool_name "Agent" or the older "Task" name, via PreToolUse). A PreToolUse
-"Skill" tool_name is also matched as a defensive fallback, though the current
-hooks docs do not list it as a real PreToolUse tool name. Anything else is
-left alone, so hooks stay silent in a project where kumi was never called.
-
-When the state directory lands inside a git project (that is, KUMI_STATE_DIR
-has not redirected it elsewhere), its relative path is also added to
-`.git/info/exclude`, once, so kumi's state never needs the project's own
-.gitignore to change. .gitignore itself is never touched.
-
-Must never print to stdout: UserPromptSubmit's and UserPromptExpansion's
-stdout are both injected into the session as additional context, and this
-hook has nothing to say there. main() has a single outer try/except boundary
-so no exception, however unexpected, can ever escape it. Always exits 0,
-never raises. Standard library only.
-
-Exit code: always 0.
-
-Complexity: O(1) per call; the exclude file, when touched, is read and
-written once, linear in its own (small) size.
-"""
+"""kumi state-directory bootstrap hook (UserPromptSubmit, PreToolUse, UserPromptExpansion).
+Creates the .kumi state directory the moment kumi is called. Must never print to stdout."""
 
 import json
 import os
@@ -46,13 +18,7 @@ def read_payload():
 
 
 def is_kumi_call(payload):
-    """Return True if this event is a call into kumi.
-
-    A kumi call is a `/kumi:` slash prompt, a kumi skill (typed directly, via
-    UserPromptExpansion's `command_name`, or invoked as a PreToolUse tool
-    call), or a kumi subagent. Missing or malformed fields mean no, never an
-    error.
-    """
+    """Return True if this event is a call into kumi; malformed fields mean no, not an error."""
     if not isinstance(payload, dict):
         return False
     event = payload.get("hook_event_name")
@@ -65,8 +31,7 @@ def is_kumi_call(payload):
         command_name = payload.get("command_name")
         if not isinstance(command_name, str):
             return False
-        # Docs show command_name without a leading slash (e.g. "example-skill"
-        # for a typed "/example-skill"), but strip one if present just in case.
+        # command_name usually has no leading slash, but strip one if present.
         return command_name.lstrip("/").startswith("kumi:")
 
     if event == "PreToolUse":
@@ -86,13 +51,7 @@ def is_kumi_call(payload):
 
 
 def add_git_exclude(project, kumi):
-    """Add the state dir's relative path to .git/info/exclude, once.
-
-    Only runs when the state dir is inside the project and the project is a
-    git work tree with a real .git directory (not the file a worktree or
-    submodule uses there). Never touches .gitignore. Any failure along the
-    way is skipped silently: this is a courtesy, not a requirement.
-    """
+    """Add the state dir's relative path to .git/info/exclude, once. Never touches .gitignore."""
     try:
         project_abs = os.path.abspath(project)
         kumi_abs = os.path.abspath(kumi)
@@ -107,10 +66,7 @@ def add_git_exclude(project, kumi):
         entry = rel.replace(os.sep, "/") + "/"
         exclude_path = os.path.join(git_dir, "info", "exclude")
 
-        # errors="surrogateescape" so a pre-existing exclude file with stray
-        # non-UTF-8 bytes is read without raising instead of crashing the
-        # hook. Only appended to below, never rewritten, so those bytes are
-        # never touched or corrupted regardless of how they decoded.
+        # surrogateescape so a pre-existing non-UTF-8 exclude file doesn't crash this.
         existing = ""
         if os.path.isfile(exclude_path):
             with open(exclude_path, encoding="utf-8", errors="surrogateescape") as f:
@@ -128,8 +84,7 @@ def add_git_exclude(project, kumi):
 
 
 def main():
-    # Single outer boundary: whatever throws, however unexpected, this hook
-    # must still exit 0 rather than crash the session it's watching.
+    # Whatever throws, this hook must still exit 0 rather than crash the session.
     try:
         payload = read_payload()
         if not is_kumi_call(payload):

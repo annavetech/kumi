@@ -2,7 +2,7 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.0] - 2026-09-21
 
 - Added sora, a DevOps specialist for containers, CI/CD, infrastructure as code and deploys.
 - Added repository automation: code owners, auto-assign, chat commands (`/lgtm`, `/approve`, `/hold`, `/unhold`, `/ok-to-test`), a label taxonomy with sync, and security settings for outside contributors.
@@ -19,6 +19,11 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - Added two more worked examples: asking for something in plain words, and handing over a whole feature that's already scoped across two stacks.
 - The README now states which stacks kumi covers today, and that the roster can be extended.
 - The specialist roster is now framed as reference material you can read later, not something you need before calling `/yui`.
+- Fixed: the merge gate could deadlock after a `/lgtm` or `/approve` comment, because GitHub never re-triggers a workflow from a label change made by its own token; chat-ops now posts the `merge-gate` status itself right after it changes a label. A new commit pushed to an approved PR now strips the `lgtm` and `approved` labels and posts the corrected status itself, so re-approval always covers everything currently on the branch, not just the newest push.
+- Documented `overrides.json` in `SECURITY.md`'s scope: its `rule` strings are injected verbatim as `SessionStart` context, so write access to it is the same as write access to the project.
+- Eval cases can now carry `must`/`must_not` behavior assertions alongside routing, so a grader (a human today, `claude plugin eval` once wired in) can check a transcript's behavior, not just which specialist fired.
+- Documented that disabling, uninstalling, or reinstalling kumi never touches a project's `.kumi` directory; it stays in place and stays readable either way.
+- Fixed: agent metrics recorded every specialist as `unknown` in `.kumi/metrics/agents.jsonl`, because `record_metrics.py` looked for the name in the subagent's own transcript, where it never appears. It now reads `agent_type` from the SubagentStop hook payload and strips the `kumi:` prefix, so agent metrics record the real specialist name instead of `unknown`.
 
 ## [1.1.0] - 2026-09-14
 

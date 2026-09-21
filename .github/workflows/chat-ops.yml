@@ -4,9 +4,16 @@ on:
   issue_comment:
     types: [created]
 
+# Shares the concurrency group with merge-gate.yml so a chat command and a
+# push to the same PR do not race; the last one to finish sets the status.
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
 permissions:
   issues: write
   pull-requests: write
+  statuses: write
 
 jobs:
   chat-ops:

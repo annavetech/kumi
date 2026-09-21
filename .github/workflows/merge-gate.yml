@@ -4,23 +4,25 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
+# Shares the concurrency group with chat-ops.yml so a push and a chat command
+# on the same PR do not race; the last one to finish sets the status.
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   statuses: write
 
 jobs:
-  # Named apart from the `merge-gate` commit-status context this job posts
-  # (merge_gate.py), so this job's own check run can never be confused with
-  # the status that actually gates the merge. This job itself always ends
-  # green once it can read the event payload and post a status; see
-  # DEVELOPMENT.md's "How the CI scripts fail" for why.
+  # Named apart from the `merge-gate` status context this job posts, so the check run is never confused with the gating status.
+  # Handles every trigger except synchronize, which strip-stale-approval below handles instead.
   merge-gate-status:
     runs-on: ubuntu-latest
+    if: github.event.action != 'synchronize'
     steps:
-      # pull_request_target: only the event payload already delivered with
-      # the trigger is read below (labels, head sha) — no checkout of the
-      # PR's own code, and no use of the elevated token against anything
-      # other than posting a commit status.
+      # pull_request_target: only the event payload (labels, head sha) is read below.
+      # No checkout of the PR's own code, and the elevated token only posts a commit status.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
@@ -28,5 +30,24 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 .github/scripts/merge_gate.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # A new commit invalidates the previous approval, so this job strips the `lgtm` and `approved` labels (any do-not-merge/* hold stays) and posts the corrected status itself.
+  # Its permissions: block replaces the workflow-level one above, for this job only.
+  strip-stale-approval:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'synchronize'
+    permissions:
+      pull-requests: write
+      statuses: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: python3 .github/scripts/strip_stale_approval.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

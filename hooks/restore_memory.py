@@ -1,21 +1,6 @@
 #!/usr/bin/env python3
 """kumi memory restore hook (SessionStart).
-
-Runs at the start of a session and surfaces the project's recent kumi memory
-(the last few captured entries and the current handoff) as additional context,
-so a new session resumes where the previous one left off instead of starting
-cold. This is the read side of the memory loop; capture_memory.py is the write
-side.
-
-It emits at most a bounded amount of text so it never floods the session, reads
-file names from config/runtime.json (via kumi_state), always exits 0, and never
-raises. Standard library only.
-
-Exit code: always 0.
-
-Complexity: reads the tail of the memory log and the handoff once each; entry
-splitting is linear in the text read, which is itself capped.
-"""
+Surfaces the project's recent kumi memory and current handoff as additional context."""
 
 import json
 import os
@@ -28,7 +13,6 @@ MAX_CONTEXT_CHARS = 4000
 
 
 def read_payload():
-    # Hook input is JSON on stdin; tolerate empty or malformed input.
     try:
         raw = sys.stdin.read()
         return json.loads(raw) if raw.strip() else {}
@@ -52,8 +36,7 @@ def emit(context):
 
 
 def main():
-    # Single outer boundary: whatever throws, however unexpected, this hook
-    # must still exit 0 rather than crash the session it's watching.
+    # Whatever throws, this hook must still exit 0 rather than crash the session.
     try:
         payload = read_payload()
         cfg = kumi_state.load()
@@ -72,9 +55,7 @@ def main():
                     text = f.read()
             except OSError:
                 text = ""
-            # Entries in the log start with a "## <timestamp>" heading. Split
-            # on it, take the last few, and drop the file's own "# kumi
-            # memory" header.
+            # Entries start with a "## <timestamp>" heading; split on it and take the last few.
             entries = text.split("\n## ")
             n = int(cfg["memory"].get("restore_entries", 3))
             recent = entries[-n:] if len(entries) > 1 else []

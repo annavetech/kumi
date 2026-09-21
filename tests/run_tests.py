@@ -1,21 +1,6 @@
 #!/usr/bin/env python3
 """kumi test suite.
-
-Runs every check the plugin ships with and, importantly, verifies the negative
-cases too: that the validator actually rejects malformed skills, and that the
-hooks never fail no matter what they are handed. A validator that never says no
-is not a validator, so those negative cases are the point.
-
-Usage (from the plugin root):
-    python3 tests/run_tests.py
-
-Exit codes:
-    0  all tests passed
-    1  one or more tests failed
-    2  environment error
-
-Standard library only.
-"""
+Runs every check the plugin ships with, including that the validator rejects malformed skills."""
 
 import contextlib
 import io
@@ -26,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -35,6 +21,8 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, SCRIPTS_DIR)
 sys.path.insert(0, GITHUB_SCRIPTS_DIR)
 
+import chat_commands  # noqa: E402
+import strip_stale_approval  # noqa: E402
 from _github import report_if_error  # noqa: E402
 from build_agents import role_kind  # noqa: E402
 from merge_gate import MAX_DESCRIPTION_LENGTH, decide_state  # noqa: E402
@@ -42,9 +30,7 @@ from validate_skills import CONTRACT, check_skill, load_contract  # noqa: E402
 
 PASS, FAIL = 0, 0
 
-# Anna's rule: no automation process may ever produce an emoji. Pictographs,
-# misc symbols, dingbats, and the variation-selector-16 that turns a plain
-# glyph into its emoji-presentation form.
+# No automation process may ever produce an emoji.
 EMOJI_PATTERN = re.compile(
     "["
     "\U0001F300-\U0001FAFF"  # misc symbols and pictographs through extended-A
@@ -177,10 +163,7 @@ def test_negative_cases(contract):
 
 
 def test_role_kind_devops_before_ops():
-    # "DevOps Specialist" contains the substring "ops", so the devops branch
-    # must be checked before the process/ops branch or it would misclassify
-    # into enn's kind (no Edit/Write), leaving sora unable to write its own
-    # Dockerfiles and workflow files.
+    # "DevOps Specialist" contains "ops", so devops must be checked before process/ops.
     cases = [
         ("DevOps Specialist", "devops"),
         ("Infra Specialist", "devops"),
@@ -195,13 +178,7 @@ def test_role_kind_devops_before_ops():
 
 
 def test_chat_ops_workflow_permissions():
-    # A PR comment's `issue_number` resolves to a pull request, and adding a
-    # label or reacting to that comment via GITHUB_TOKEN 403s with only
-    # `issues: write` — GitHub requires `pull-requests: write` too (see
-    # workflow-syntax's own example: "pull-requests: write permits an action
-    # to add a label to a pull request"). Both runs of chat-ops on PR #6
-    # (2026-09-17) 403'd on add_labels and add_reaction for exactly this
-    # reason. Guard the workflow-level permissions block against regressing.
+    # Labeling a PR comment via GITHUB_TOKEN needs both issues:write and pull-requests:write.
     path = os.path.join(ROOT, ".github", "workflows", "chat-ops.yml")
     with open(path, encoding="utf-8") as f:
         text = f.read()
@@ -212,6 +189,19 @@ def test_chat_ops_workflow_permissions():
         bad("chat-ops workflow grants issues:write and pull-requests:write", f"missing: {missing}")
     else:
         ok("chat-ops workflow grants issues:write and pull-requests:write")
+
+
+def test_chat_ops_grants_statuses_write():
+    # chat-ops posts the merge-gate status itself after changing a label.
+    path = os.path.join(ROOT, ".github", "workflows", "chat-ops.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    perms_block = text.split("jobs:", 1)[0]
+    name = "chat-ops workflow grants statuses:write"
+    if "statuses: write" in perms_block:
+        ok(name)
+    else:
+        bad(name, "missing statuses: write in the top-level permissions block")
 
 
 def test_report_if_error_prints_github_message():
@@ -261,8 +251,7 @@ def test_merge_gate_decide_state():
 
 
 def test_merge_gate_description_length_capped():
-    # A defensive cap, not a realistic input: confirms an unusual pile-up of
-    # do-not-merge/* labels can never produce a status GitHub would reject.
+    # Not a realistic input; confirms an unusual pile-up of hold labels stays within the limit.
     holds = {f"do-not-merge/a-fairly-long-reason-{i}" for i in range(20)}
     state, desc = decide_state(holds)
     name = "decide_state caps description at GitHub's 140-character limit"
@@ -288,10 +277,32 @@ def test_merge_gate_workflow_permissions():
         ok(name)
 
 
+def test_strip_stale_approval_job_permissions():
+    # This job's own permissions: block replaces the workflow-level one, for this job only.
+    path = os.path.join(ROOT, ".github", "workflows", "merge-gate.yml")
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    job_marker = "\n  strip-stale-approval:\n"
+    name = "strip-stale-approval job grants only pull-requests:write and statuses:write"
+    if job_marker not in text:
+        bad(name, "job not found in merge-gate.yml")
+        return
+    job_text = text[text.index(job_marker) + len(job_marker):]
+    next_job = re.search(r"\n  [a-zA-Z0-9_-]+:\n", job_text)
+    if next_job:
+        job_text = job_text[:next_job.start()]
+    required = ("pull-requests: write", "statuses: write")
+    missing = [perm for perm in required if perm not in job_text]
+    forbidden = ("contents: write", "issues: write")
+    over_broad = [perm for perm in forbidden if perm in job_text]
+    if missing or over_broad:
+        bad(name, f"missing={missing} over_broad={over_broad}")
+    else:
+        ok(name)
+
+
 def test_merge_gate_job_named_apart_from_status_context():
-    # The job id (and its check-run name) must differ from the "merge-gate"
-    # commit-status context merge_gate.py posts, or the two are impossible
-    # to tell apart in branch protection's required-checks list.
+    # The job id must differ from the "merge-gate" commit-status context merge_gate.py posts.
     path = os.path.join(ROOT, ".github", "workflows", "merge-gate.yml")
     with open(path, encoding="utf-8") as f:
         text = f.read()
@@ -303,8 +314,7 @@ def test_merge_gate_job_named_apart_from_status_context():
 
 
 def test_merge_gate_never_checks_out_pr_head():
-    # pull_request_target hands the job a write-capable token; it must only
-    # read the event payload, never check out or run the PR's own code.
+    # pull_request_target's write-capable token must never check out the PR's own code.
     path = os.path.join(ROOT, ".github", "workflows", "merge-gate.yml")
     with open(path, encoding="utf-8") as f:
         text = f.read()
@@ -315,12 +325,277 @@ def test_merge_gate_never_checks_out_pr_head():
         bad(name, "found an explicit checkout ref in a pull_request_target workflow")
 
 
+def test_refresh_merge_gate_status_posts_current_state():
+    # Must post against the PR's live head sha and labels, not the comment's own event payload.
+    pr = {"labels": [{"name": "lgtm"}, {"name": "approved"}], "head": {"sha": "abc123"}}
+    with mock.patch("chat_commands.get_pull_request", return_value=(200, pr)) as get_pr, \
+            mock.patch("chat_commands.set_commit_status", return_value=(201, {})) as set_status:
+        chat_commands.refresh_merge_gate_status("annavetech/kumi", 42)
+    name = "refresh_merge_gate_status posts decide_state's result at the PR's current head sha"
+    expect_get = mock.call("annavetech/kumi", 42)
+    expect_status = mock.call("annavetech/kumi", "abc123", "success", "lgtm and approved; not held")
+    if get_pr.call_args == expect_get and set_status.call_args == expect_status:
+        ok(name)
+    else:
+        bad(name, f"get_pr={get_pr.call_args} set_status={set_status.call_args}")
+
+
+def test_refresh_merge_gate_status_swallows_get_failure():
+    with mock.patch("chat_commands.get_pull_request", return_value=(404, None)), \
+            mock.patch("chat_commands.set_commit_status") as set_status:
+        chat_commands.refresh_merge_gate_status("annavetech/kumi", 42)
+    name = "refresh_merge_gate_status never posts a status when the PR fetch fails"
+    if not set_status.called:
+        ok(name)
+    else:
+        bad(name, "posted a status despite a failed get_pull_request")
+
+
+def test_handle_lgtm_refreshes_status_after_label_added():
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.add_labels", return_value=(200, {})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_lgtm("annavetech/kumi", 42, "anna")
+    name = "handle_lgtm refreshes the merge-gate status after a successful add_labels"
+    if refresh.call_args == mock.call("annavetech/kumi", 42):
+        ok(name)
+    else:
+        bad(name, f"refresh call: {refresh.call_args}")
+
+
+def test_handle_lgtm_skips_refresh_on_label_failure():
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.add_labels", return_value=(403, {"message": "no"})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_lgtm("annavetech/kumi", 42, "anna")
+    name = "handle_lgtm does not refresh the status when add_labels itself failed"
+    if not refresh.called:
+        ok(name)
+    else:
+        bad(name, "refresh_merge_gate_status was called despite a failed add_labels")
+
+
+def test_handle_approve_refreshes_status_after_label_added():
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.add_labels", return_value=(200, {})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_approve("annavetech/kumi", 42, "anna")
+    name = "handle_approve refreshes the merge-gate status after a successful add_labels"
+    if refresh.call_args == mock.call("annavetech/kumi", 42):
+        ok(name)
+    else:
+        bad(name, f"refresh call: {refresh.call_args}")
+
+
+def test_handle_approve_skips_refresh_on_label_failure():
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.add_labels", return_value=(403, {"message": "no"})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_approve("annavetech/kumi", 42, "anna")
+    name = "handle_approve does not refresh the status when add_labels itself failed"
+    if not refresh.called:
+        ok(name)
+    else:
+        bad(name, "refresh_merge_gate_status was called despite a failed add_labels")
+
+
+def test_handle_hold_refreshes_status_after_label_added():
+    # /hold must recompute against the label set including the hold just added.
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.add_labels", return_value=(200, {})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_hold("annavetech/kumi", 42, "anna", "anna")
+    name = "handle_hold refreshes the merge-gate status after adding the hold label"
+    if refresh.call_args == mock.call("annavetech/kumi", 42):
+        ok(name)
+    else:
+        bad(name, f"refresh call: {refresh.call_args}")
+
+
+def test_handle_hold_skips_refresh_on_label_failure():
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.add_labels", return_value=(403, {"message": "no"})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_hold("annavetech/kumi", 42, "anna", "anna")
+    name = "handle_hold does not refresh the status when add_labels itself failed"
+    if not refresh.called:
+        ok(name)
+    else:
+        bad(name, "refresh_merge_gate_status was called despite a failed add_labels")
+
+
+def test_handle_unhold_refreshes_on_removed_or_already_gone():
+    for status in (200, 404):
+        with mock.patch("chat_commands.is_authorized", return_value=True), \
+                mock.patch("chat_commands.remove_label", return_value=(status, None)), \
+                mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+            chat_commands.handle_unhold("annavetech/kumi", 42, "anna", "anna")
+        name = f"handle_unhold refreshes the status when remove_label returns {status}"
+        if refresh.call_args == mock.call("annavetech/kumi", 42):
+            ok(name)
+        else:
+            bad(name, f"refresh call: {refresh.call_args}")
+
+
+def test_handle_unhold_skips_refresh_on_label_failure():
+    # 404 is tolerated as "already gone", so use a genuine error (403) to exercise the guard.
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.remove_label", return_value=(403, {"message": "no"})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_unhold("annavetech/kumi", 42, "anna", "anna")
+    name = "handle_unhold does not refresh the status when remove_label genuinely failed"
+    if not refresh.called:
+        ok(name)
+    else:
+        bad(name, "refresh_merge_gate_status was called despite a failed remove_label")
+
+
+def test_handle_ok_to_test_never_refreshes_status():
+    # decide_state never reads ok-to-test/needs-ok-to-test labels.
+    with mock.patch("chat_commands.is_authorized", return_value=True), \
+            mock.patch("chat_commands.remove_label", return_value=(200, None)), \
+            mock.patch("chat_commands.add_labels", return_value=(200, {})), \
+            mock.patch("chat_commands.refresh_merge_gate_status") as refresh:
+        chat_commands.handle_ok_to_test("annavetech/kumi", 42, "anna", "author")
+    name = "handle_ok_to_test never calls refresh_merge_gate_status"
+    if not refresh.called:
+        ok(name)
+    else:
+        bad(name, "refresh_merge_gate_status was called from handle_ok_to_test")
+
+
+def test_strip_stale_approval_removes_lgtm_and_approved():
+    with (
+        mock.patch("strip_stale_approval.remove_label", return_value=(200, None)) as remove,
+        mock.patch("strip_stale_approval.set_commit_status", return_value=(201, {})) as set_status,
+    ):
+        result = strip_stale_approval.strip_and_report(
+            "annavetech/kumi", 42, "def456", {"lgtm", "approved"}
+        )
+    name = "strip_and_report removes both lgtm and approved when present"
+    removed = sorted(c.args[2] for c in remove.call_args_list)
+    expect_status = mock.call("annavetech/kumi", "def456", "pending", "Needs approved, lgtm labels")
+    if result and removed == ["approved", "lgtm"] and set_status.call_args == expect_status:
+        ok(name)
+    else:
+        bad(name, f"result={result} removed={removed} set_status={set_status.call_args}")
+
+
+def test_strip_stale_approval_leaves_hold_untouched():
+    with (
+        mock.patch("strip_stale_approval.remove_label", return_value=(200, None)) as remove,
+        mock.patch("strip_stale_approval.set_commit_status", return_value=(201, {})) as set_status,
+    ):
+        result = strip_stale_approval.strip_and_report(
+            "annavetech/kumi", 42, "def456", {"lgtm", "approved", "do-not-merge/hold"}
+        )
+    name = "strip_and_report never removes a do-not-merge/* hold label"
+    removed = [c.args[2] for c in remove.call_args_list]
+    hold_status = ("pending", "Blocked by do-not-merge/hold")
+    expect_status = mock.call("annavetech/kumi", "def456", *hold_status)
+    if result and "do-not-merge/hold" not in removed and set_status.call_args == expect_status:
+        ok(name)
+    else:
+        bad(name, f"removed={removed} set_status={set_status.call_args}")
+
+
+def test_strip_stale_approval_nothing_to_remove():
+    # A push to a PR that only has a hold: nothing to strip.
+    with (
+        mock.patch("strip_stale_approval.remove_label") as remove,
+        mock.patch("strip_stale_approval.set_commit_status", return_value=(201, {})) as set_status,
+    ):
+        result = strip_stale_approval.strip_and_report(
+            "annavetech/kumi", 42, "def456", {"do-not-merge/hold"}
+        )
+    name = "strip_and_report posts the unchanged hold status when there is nothing to strip"
+    hold_status = ("pending", "Blocked by do-not-merge/hold")
+    expect_status = mock.call("annavetech/kumi", "def456", *hold_status)
+    if result and not remove.called and set_status.call_args == expect_status:
+        ok(name)
+    else:
+        bad(name, f"remove.called={remove.called} set_status={set_status.call_args}")
+
+
+def test_strip_stale_approval_fails_closed_on_remove_error():
+    with mock.patch("strip_stale_approval.remove_label", return_value=(403, {"message": "no"})), \
+            mock.patch("strip_stale_approval.set_commit_status") as set_status:
+        result = strip_stale_approval.strip_and_report(
+            "annavetech/kumi", 42, "def456", {"lgtm"}
+        )
+    name = "strip_and_report fails closed and posts nothing when a label removal errors"
+    if result is False and not set_status.called:
+        ok(name)
+    else:
+        bad(name, f"result={result} set_status.called={set_status.called}")
+
+
+def test_strip_stale_approval_fails_closed_on_status_post_error():
+    with (
+        mock.patch("strip_stale_approval.remove_label", return_value=(200, None)),
+        mock.patch("strip_stale_approval.set_commit_status", return_value=(403, {"message": "no"})),
+    ):
+        result = strip_stale_approval.strip_and_report(
+            "annavetech/kumi", 42, "def456", {"lgtm"}
+        )
+    name = "strip_and_report fails closed (returns False) when posting the status itself fails"
+    if result is False:
+        ok(name)
+    else:
+        bad(name, f"result={result}")
+
+
+def run_github_script_without_token(script_name, event):
+    """Run a .github/scripts/*.py script with no GITHUB_TOKEN set. Returns CompletedProcess."""
+    fd, event_path = tempfile.mkstemp(suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump(event, f)
+    env = dict(os.environ)
+    env.pop("GITHUB_TOKEN", None)
+    env["GITHUB_EVENT_PATH"] = event_path
+    env["GITHUB_REPOSITORY"] = "annavetech/kumi"
+    try:
+        return subprocess.run(
+            [sys.executable, os.path.join(GITHUB_SCRIPTS_DIR, script_name)],
+            capture_output=True, text=True, env=env,
+        )
+    finally:
+        os.remove(event_path)
+
+
+def test_merge_gate_exits_clean_without_token():
+    event = {
+        "pull_request": {
+            "labels": [{"name": "lgtm"}, {"name": "approved"}],
+            "head": {"sha": "abc123"},
+        }
+    }
+    r = run_github_script_without_token("merge_gate.py", event)
+    name = "merge_gate.py exits 1 with a clear message when GITHUB_TOKEN is missing, no traceback"
+    if r.returncode == 1 and "GITHUB_TOKEN" in r.stdout and "Traceback" not in r.stderr:
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}")
+
+
+def test_strip_stale_approval_exits_clean_without_token():
+    event = {
+        "pull_request": {
+            "number": 42,
+            "head": {"sha": "def456"},
+            "labels": [{"name": "lgtm"}, {"name": "approved"}],
+        }
+    }
+    r = run_github_script_without_token("strip_stale_approval.py", event)
+    name = "strip_stale_approval.py exits 1 with a clear message when the token is missing"
+    if r.returncode == 1 and "GITHUB_TOKEN" in r.stdout and "Traceback" not in r.stderr:
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}")
+
+
 def test_validate_claude_manifest_job_pins_checksum_safely():
-    # Findings from ivo's review of the validate-claude-manifest job: (1) the
-    # comment must never claim a signature that doesn't exist — the job only
-    # ever checks a sha256 checksum; (2) nothing may be piped straight to a
-    # shell, and the sha256 it checks against must be a literal pinned in the
-    # repo, not fetched from the same origin as the binary at run time.
+    # The job must pin a literal sha256, never pipe curl to bash, and claim no unverified signature.
     path = os.path.join(ROOT, ".github", "workflows", "ci.yml")
     with open(path, encoding="utf-8") as f:
         text = f.read()
@@ -395,9 +670,7 @@ def test_agents_up_to_date():
 
 
 def test_hooks_never_fail():
-    # workdir is passed as the subprocess's real working directory, so a
-    # hook's os.getcwd() fallback (e.g. ensure_state on a non-string cwd)
-    # lands here rather than in this repo.
+    # workdir is the subprocess's real cwd, so a hook's os.getcwd() fallback lands here.
     workdir = tempfile.mkdtemp()
     empty = tempfile.mkdtemp(dir=workdir)  # a dir with no .kumi
     git_dir = os.path.join(workdir, ".git", "info")
@@ -405,11 +678,7 @@ def test_hooks_never_fail():
     with open(os.path.join(git_dir, "exclude"), "wb") as f:
         f.write(b"already-here\n\xff\xfe not valid utf-8\n")  # pre-existing non-UTF-8 bytes
     common_inputs = ['', 'not json', '{}', f'{{"cwd":"{empty}"}}']
-    # Malformed-cwd shapes (int, null, list, dict, empty string): kumi_state's
-    # state_dir passes cwd straight into os.path.join, which used to raise
-    # TypeError on anything but a string, and every one of these hooks lacked
-    # an outer boundary to catch it. Run against all six hooks, not just
-    # ensure_state, where this was first found and fixed.
+    # Malformed cwd (int, null, list, dict, empty string) used to raise TypeError in os.path.join.
     malformed_cwd_inputs = [
         '{"cwd":123}',
         '{"cwd":null}',
@@ -417,9 +686,7 @@ def test_hooks_never_fail():
         '{"cwd":{"a":1}}',
         '{"cwd":""}',
     ]
-    # ensure_state also needs a real is_kumi_call shape (hook_event_name +
-    # prompt) to reach its cwd-handling code path at all, plus a case with a
-    # valid cwd that exercises the pre-seeded non-UTF-8 exclude file above.
+    # ensure_state needs a real is_kumi_call shape to reach its cwd-handling code at all.
     ensure_state_inputs = [
         '{"hook_event_name":"UserPromptSubmit","prompt":"/kumi:yui hi","cwd":123}',
         '{"hook_event_name":"UserPromptSubmit","prompt":"/kumi:yui hi","cwd":null}',
@@ -452,13 +719,98 @@ def test_hooks_never_fail():
         ok("hooks never fail on bad or empty input")
 
 
-def run_ensure_state(payload_obj, env_extra=None, proc_cwd=None):
-    """Run ensure_state.py with a JSON payload on stdin, return CompletedProcess.
+# A real subagent transcript's lines never carry a "subagent_type" or "agent" field.
+SUBAGENT_TRANSCRIPT_LINES = [
+    {
+        "parentUuid": None,
+        "isSidechain": True,
+        "agentId": "aaadd4043fa023033",
+        "type": "user",
+        "message": {"role": "user", "content": "Task: review hello.py."},
+        "uuid": "66d1a116-7361-4963-916a-bca2f203b476",
+        "timestamp": "2026-09-21T11:44:05.578Z",
+        "cwd": "/private/tmp/kumi-memory-check",
+        "sessionId": "afe6c14e-5cb6-49d8-a8c9-3ad2aca8758c",
+        "version": "2.1.278",
+    },
+    {
+        "parentUuid": "66d1a116-7361-4963-916a-bca2f203b476",
+        "isSidechain": True,
+        "agentId": "aaadd4043fa023033",
+        "type": "assistant",
+        "message": {
+            "role": "assistant",
+            "content": "No findings.",
+            "usage": {
+                "input_tokens": 14,
+                "output_tokens": 1290,
+                "cache_read_input_tokens": 199343,
+                "cache_creation_input_tokens": 62535,
+            },
+        },
+        "uuid": "77e2b227-8472-5a74-a27d-cca3f214c587",
+        "timestamp": "2026-09-21T11:44:09.905Z",
+        "cwd": "/private/tmp/kumi-memory-check",
+        "sessionId": "afe6c14e-5cb6-49d8-a8c9-3ad2aca8758c",
+        "version": "2.1.278",
+    },
+]
 
-    proc_cwd sets the subprocess's real working directory, distinct from the
-    payload's own "cwd" field, so a fallback to os.getcwd() can be pinned to
-    a disposable temp dir instead of wherever the test runner happens to be.
-    """
+
+def run_record_metrics(payload_obj, proc_cwd=None):
+    """Run record_metrics.py with a JSON payload on stdin, return CompletedProcess."""
+    stdin = json.dumps(payload_obj) if payload_obj is not None else ""
+    return subprocess.run(
+        [sys.executable, os.path.join(ROOT, "hooks", "record_metrics.py")],
+        input=stdin, capture_output=True, text=True, cwd=proc_cwd,
+    )
+
+
+def test_record_metrics_subagent_agent_name():
+    # Must resolve the specialist name from the payload's "agent_type" even when
+    # the transcript itself never mentions the agent's name.
+    project = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(project, ".kumi"))
+        transcript_path = os.path.join(project, "agent-aaadd4043fa023033.jsonl")
+        with open(transcript_path, "w", encoding="utf-8") as f:
+            for line in SUBAGENT_TRANSCRIPT_LINES:
+                f.write(json.dumps(line) + "\n")
+
+        payload = {
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": False,
+            "agent_id": "aaadd4043fa023033",
+            "agent_transcript_path": transcript_path,
+            "agent_type": "kumi:ivo",
+            "session_id": "afe6c14e-5cb6-49d8-a8c9-3ad2aca8758c",
+            "transcript_path": transcript_path,
+            "cwd": project,
+        }
+        r = run_record_metrics(payload, proc_cwd=project)
+
+        agents_path = os.path.join(project, ".kumi", "metrics", "agents.jsonl")
+        record = None
+        if os.path.isfile(agents_path):
+            with open(agents_path, encoding="utf-8") as f:
+                lines = [line for line in f if line.strip()]
+            if lines:
+                record = json.loads(lines[-1])
+
+        msg = "record_metrics resolves the real specialist name from agent_type, not \"unknown\""
+        if r.returncode == 0 and record is not None and record.get("agent") == "ivo":
+            ok(msg)
+        else:
+            bad(
+                msg,
+                f"rc={r.returncode} record={record!r} stderr={r.stderr}",
+            )
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def run_ensure_state(payload_obj, env_extra=None, proc_cwd=None):
+    """Run ensure_state.py with a JSON payload on stdin; proc_cwd is the subprocess's cwd."""
     env = dict(os.environ)
     if env_extra:
         env.update(env_extra)
@@ -778,19 +1130,40 @@ def main():
     test_negative_cases(contract)
     test_role_kind_devops_before_ops()
     test_chat_ops_workflow_permissions()
+    test_chat_ops_grants_statuses_write()
     test_report_if_error_prints_github_message()
     test_report_if_error_ignores_expected_status()
     test_merge_gate_decide_state()
     test_merge_gate_description_length_capped()
     test_merge_gate_workflow_permissions()
+    test_strip_stale_approval_job_permissions()
     test_merge_gate_job_named_apart_from_status_context()
     test_merge_gate_never_checks_out_pr_head()
+    test_refresh_merge_gate_status_posts_current_state()
+    test_refresh_merge_gate_status_swallows_get_failure()
+    test_handle_lgtm_refreshes_status_after_label_added()
+    test_handle_lgtm_skips_refresh_on_label_failure()
+    test_handle_approve_refreshes_status_after_label_added()
+    test_handle_approve_skips_refresh_on_label_failure()
+    test_handle_hold_refreshes_status_after_label_added()
+    test_handle_hold_skips_refresh_on_label_failure()
+    test_handle_unhold_refreshes_on_removed_or_already_gone()
+    test_handle_unhold_skips_refresh_on_label_failure()
+    test_handle_ok_to_test_never_refreshes_status()
+    test_strip_stale_approval_removes_lgtm_and_approved()
+    test_strip_stale_approval_leaves_hold_untouched()
+    test_strip_stale_approval_nothing_to_remove()
+    test_strip_stale_approval_fails_closed_on_remove_error()
+    test_strip_stale_approval_fails_closed_on_status_post_error()
+    test_merge_gate_exits_clean_without_token()
+    test_strip_stale_approval_exits_clean_without_token()
     test_validate_claude_manifest_job_pins_checksum_safely()
     test_no_emoji_under_github()
     test_all_real_skills_pass()
     test_eval_cases_pass()
     test_agents_up_to_date()
     test_hooks_never_fail()
+    test_record_metrics_subagent_agent_name()
     test_ensure_state_creates_on_kumi_call()
     test_ensure_state_non_kumi_call_is_noop()
     test_ensure_state_empty_or_malformed_stdin()

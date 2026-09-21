@@ -1,34 +1,6 @@
 #!/usr/bin/env python3
 """Generate subagent definitions from the skills.
-
-kumi ships each specialist as both a skill (lightweight, invoked by name in the
-main session) and a subagent (its own context, so its actions and token/time can
-be measured per agent). The skill is the single source of truth; this script
-derives agents/<name>.md from skills/<name>/SKILL.md so the two never drift. Run
-it whenever a skill changes.
-
-Each generated subagent also gets a tool set, a model, and a color, chosen from
-the specialist's role. Reviewers get read-only tools so a reviewer subagent
-genuinely cannot edit; implementers and debuggers get edit and shell tools; the
-architect gets read and write (it produces a spec document, never code); the
-process manager gets shell and read. Colors group the roles at a glance.
-
-The coordinator (yui) is intentionally not generated as a subagent: a subagent
-cannot dispatch other subagents, so yui stays a skill that runs in the main
-session and routes.
-
-Usage (from the plugin root):
-    python3 scripts/build_agents.py          # write agents/
-    python3 scripts/build_agents.py --check  # verify agents/ is up to date
-
-Exit codes:
-    0  wrote successfully, or (with --check) everything is up to date
-    1  (with --check) one or more agent files are missing or stale
-    2  usage or environment error
-
-Complexity: one pass over the skills; each skill is read once and written once.
-Standard library only.
-"""
+Derives agents/<name>.md from skills/<name>/SKILL.md, the source of truth, so they never drift."""
 
 import os
 import re
@@ -80,16 +52,13 @@ def split_frontmatter(text):
 
 
 def field(frontmatter, key):
-    """Return the value of a frontmatter key, or None. Allows indentation so it
-    also reads keys nested under the metadata block."""
+    """Return the value of a frontmatter key, or None; indentation is allowed for nested keys."""
     m = re.search(rf"^\s*{re.escape(key)}\s*:\s*(.+)$", frontmatter, re.MULTILINE)
     return m.group(1).strip() if m else None
 
 
 def role_kind(role):
     """Classify a metadata role string into one of the tool/color groups."""
-    # Match on the words in the role title: "Go Implementer", "Python Debugger",
-    # "SQL Specialist", and so on.
     r = (role or "").lower()
     if "implementer" in r:
         return "implementer"

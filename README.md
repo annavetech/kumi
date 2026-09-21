@@ -106,7 +106,7 @@ The names are short on purpose. Once you know the team you call them the way you
 
 Every specialist ships two ways. As a **skill** you invoke by name in your session, and as a **subagent** that runs in its own context. The skill is the source of truth; the subagent is generated from it, so the two never drift.
 
-kumi's roster today covers Go, Angular, iOS, Python, React, SQL, NoSQL, architecture for any stack, process management, and DevOps/infra. It does not yet have dedicated specialists for docs, Node/TypeScript backends, Java, C#/.NET, Rust, or Android/Kotlin — each implementer folds its own testing into its own checklist rather than handing off to a separate test-writing role. The roster is deliberately curated, not exhaustive, and it grows the same mechanical way every time: see [docs/WALKTHROUGH-ADD-PHP-AGENT.md](docs/WALKTHROUGH-ADD-PHP-AGENT.md) for a full worked example of adding one yourself.
+kumi's roster today covers Go, Angular, iOS, Python, React, SQL, NoSQL, architecture for any stack, process management, and DevOps/infra. It does not yet have dedicated specialists for docs, Node/TypeScript backends, Java, C#/.NET, Rust, or Android/Kotlin. Each implementer folds its own testing into its own checklist rather than handing off to a separate test-writing role. The roster is deliberately curated, not exhaustive, and it grows the same mechanical way every time: see [docs/WALKTHROUGH-ADD-PHP-AGENT.md](docs/WALKTHROUGH-ADD-PHP-AGENT.md) for a full worked example of adding one yourself.
 
 ## How it works
 
@@ -136,7 +136,7 @@ kumi can also show you what the team did and what it cost. When a project uses t
 - An activity log records each tool action with a timestamp.
 - A metrics recorder captures token and time usage per session, and per agent for the specialists that run as subagents.
 
-The `.kumi` directory they write into is created the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent, on `UserPromptSubmit`, `UserPromptExpansion`, or `PreToolUse`), and kept out of git through `.git/info/exclude`. In a project where kumi has never been called, both hooks stay silent. See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md).
+The `.kumi` directory they write into is created the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent, on `UserPromptSubmit`, `UserPromptExpansion`, or `PreToolUse`), and kept out of git through `.git/info/exclude`. In a project where kumi has never been called, both hooks stay silent. Disabling, uninstalling, or reinstalling kumi never touches it; see [docs/MANAGING-SPECIALISTS.md](docs/MANAGING-SPECIALISTS.md). See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md).
 
 ## Configuration
 

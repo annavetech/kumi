@@ -1,10 +1,5 @@
 """Shared state-layout helper for the kumi hooks.
-
-The names of the kumi state files live in config/runtime.json, so hooks resolve
-paths through this helper instead of hardcoding them. If the config is missing
-or unreadable, built-in defaults are used, because a hook must never fail just
-because a config file was moved. Standard library only.
-"""
+Resolves state file paths from config/runtime.json, falling back to built-in defaults."""
 
 import json
 import os
@@ -36,9 +31,7 @@ def load():
     try:
         with open(_CONFIG, encoding="utf-8") as f:
             data = json.load(f)
-        # Merge the file over the defaults, top level and one level down, so a
-        # partial config (say only state_dir was changed) still resolves every
-        # key the hooks expect.
+        # Merge over defaults, top level and one level down, so a partial config resolves every key.
         merged = {**_DEFAULTS, **data}
         for section in ("files", "dirs", "memory", "logs", "metrics"):
             merged[section] = {**_DEFAULTS[section], **data.get(section, {})}
@@ -48,13 +41,7 @@ def load():
 
 
 def project_dir(payload):
-    """Return a usable project directory from a hook payload's "cwd" field.
-
-    A hook payload's cwd is expected to be a non-empty string. Anything else
-    (missing, None, "", or the wrong type such as an int, list, or dict) falls
-    back to the process's real working directory, so callers never hand a bad
-    type into os.path.join downstream.
-    """
+    """Return payload's "cwd" if it is a non-empty string, else the real working directory."""
     project = payload.get("cwd") if isinstance(payload, dict) else None
     if not isinstance(project, str) or not project:
         return os.getcwd()
@@ -62,13 +49,7 @@ def project_dir(payload):
 
 
 def state_dir(project, cfg):
-    """Return the base directory kumi keeps its state in.
-
-    By default this is the `state_dir` from the config, inside the working
-    project. Setting the KUMI_STATE_DIR environment variable overrides it: an
-    absolute path (with ~ allowed) is used as-is, so state can live in one place
-    across projects; a relative path is taken from the project root.
-    """
+    """Return the base state directory; KUMI_STATE_DIR overrides the config's `state_dir`."""
     override = os.environ.get("KUMI_STATE_DIR")
     if override:
         override = os.path.expanduser(override)
