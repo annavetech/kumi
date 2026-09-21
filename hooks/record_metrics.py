@@ -1,23 +1,6 @@
 #!/usr/bin/env python3
 """kumi metrics hook (Stop, SubagentStop).
-
-Records token usage and wall-clock duration for a finished run by parsing its
-transcript. On Stop it records the whole session to metrics/sessions.jsonl; on
-SubagentStop it records that single subagent run to metrics/agents.jsonl, which
-is how per-agent token/time metrics become possible (a subagent has its own
-transcript; a skill does not).
-
-Token counts and timestamps are read defensively, because transcript shapes vary
-across versions: any usage numbers and ISO timestamps found are summed and
-bracketed, and anything missing is simply omitted. The agent name is included
-when the transcript exposes it, else recorded as "unknown". Only writes when the
-project uses kumi state. Always exits 0, never raises. Standard library only.
-
-Exit code: always 0.
-
-Complexity: one linear pass over the transcript lines; only running sums and the
-min/max timestamp are kept, so memory is O(1) in the transcript length.
-"""
+Records token usage and wall-clock duration for a finished run by parsing its transcript."""
 
 import json
 import os
@@ -27,8 +10,7 @@ import kumi_state
 
 
 def read_payload():
-    # Claude Code hands a hook its input as JSON on stdin. Be lenient: an empty
-    # or malformed payload should never take the hook down.
+    # An empty or malformed payload should never take the hook down.
     try:
         raw = sys.stdin.read()
         return json.loads(raw) if raw.strip() else {}
@@ -37,12 +19,7 @@ def read_payload():
 
 
 def scan_transcript(path):
-    """Return (token_totals, first_ts, last_ts, agent_name) from a transcript.
-
-    Reads the JSONL transcript line by line, summing any usage fields and
-    tracking the earliest and latest timestamps. Best-effort: unknown shapes are
-    skipped rather than raising.
-    """
+    """Return (token_totals, first_ts, last_ts, agent_name) from a transcript, skipping bad rows."""
     totals = {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -53,9 +30,7 @@ def scan_transcript(path):
     agent = None
     try:
         with open(path, encoding="utf-8") as f:
-            # A transcript is JSONL: one record per line. The exact shape drifts
-            # between Claude Code versions, so read what we recognise and skip
-            # anything we don't rather than failing on a surprise line.
+            # One JSON record per line; skip anything we don't recognize.
             for raw in f:
                 raw = raw.strip()
                 if not raw:
@@ -64,13 +39,10 @@ def scan_transcript(path):
                     rec = json.loads(raw)
                 except ValueError:
                     continue
-                # The earliest and latest timestamps bracket the wall-clock time.
                 ts = rec.get("timestamp")
                 if isinstance(ts, str):
                     first_ts = ts if first_ts is None else min(first_ts, ts)
                     last_ts = ts if last_ts is None else max(last_ts, ts)
-                # A subagent run names itself somewhere in its transcript; take
-                # the first name we see and keep it.
                 agent = agent or rec.get("subagent_type") or rec.get("agent")
                 usage = _find_usage(rec)
                 if usage:
@@ -96,6 +68,18 @@ def _find_usage(rec):
     return None
 
 
+def resolve_agent_name(payload, transcript_agent):
+    """Return the specialist name from "agent_type" stripped of "kumi:", else transcript_agent."""
+    agent_type = payload.get("agent_type")
+    if isinstance(agent_type, str) and agent_type.strip():
+        name = agent_type.strip()
+        if name.startswith("kumi:"):
+            name = name[len("kumi:") :]
+        if name:
+            return name
+    return transcript_agent or "unknown"
+
+
 def duration_seconds(first_ts, last_ts):
     """Return whole seconds between two ISO timestamps, or None if unavailable."""
     if not (first_ts and last_ts):
@@ -111,8 +95,7 @@ def duration_seconds(first_ts, last_ts):
 
 
 def main():
-    # Single outer boundary: whatever throws, however unexpected, this hook
-    # must still exit 0 rather than crash the run it's watching.
+    # Whatever throws, this hook must still exit 0 rather than crash the run.
     try:
         payload = read_payload()
         # A stop hook can fire again while it is running; bail so we don't loop.
@@ -143,7 +126,7 @@ def main():
         }
         # Per-agent attribution only makes sense for a subagent's own transcript.
         if is_subagent:
-            record["agent"] = agent or "unknown"
+            record["agent"] = resolve_agent_name(payload, agent)
 
         metrics_dir = os.path.join(kumi, cfg["dirs"]["metrics"])
         try:

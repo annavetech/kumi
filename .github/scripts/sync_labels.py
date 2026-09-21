@@ -1,22 +1,6 @@
 #!/usr/bin/env python3
 """kumi label sync (push to main on .github/labels.json, or workflow_dispatch).
-
-Makes annavetech/kumi's real label set match .github/labels.json exactly:
-creates labels only in the file, updates color/description on labels that
-exist with a mismatch, and deletes labels not listed in the file — including
-GitHub's own default seed labels if they are not in labels.json (which is
-why the classic useful ones, duplicate/invalid/wontfix/good first
-issue/help wanted, are deliberately kept in the file rather than left to be
-deleted). This is a full replace to match the file, on purpose: see the
-file's own top-level "description" field.
-
-Deliberately never triggered on pull_request/pull_request_target: it
-performs authoritative deletes against the real label set with a write
-token, and must only run against content that already landed on main
-through review.
-
-Standard library only.
-"""
+Makes the repo's real label set match .github/labels.json exactly: creates, updates, and deletes."""
 
 import json
 import os
@@ -33,14 +17,7 @@ PAGE_SIZE = 100
 
 
 def list_existing_labels(repo):
-    """Return {name: {"color": ..., "description": ...}} for every label in repo.
-
-    Paginates GET /repos/{repo}/labels by page number rather than the Link
-    header: the shared github_request() helper returns (status, json) only,
-    not response headers, so a page is considered the last one once it comes
-    back shorter than PAGE_SIZE, which is equivalent for a plain listing
-    endpoint like this one.
-    """
+    """Return {name: {color, description}} for every label in repo, paginating to the last page."""
     existing = {}
     page = 1
     while True:

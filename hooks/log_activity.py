@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 """kumi activity log hook (PostToolUse).
-
-Appends one line per tool action to an activity log, so you can investigate what
-the agents actually did in a project: which tool ran, when, and on what. It is
-session-level, because skills run inside the main session and the runtime does
-not tell a hook which skill is active; when a specialist runs as a subagent, its
-actions are attributable through the per-agent metrics instead.
-
-It only writes when the project uses kumi state (a .kumi directory exists), so it
-stays silent everywhere else. File names come from config/runtime.json. Always
-exits 0, never raises. Standard library only.
-
-Exit code: always 0.
-
-Complexity: O(1) per call, one formatted line appended, no reads of prior log.
-"""
+Appends one line per tool action to the activity log. Only writes when .kumi already exists."""
 
 import datetime
 import json
@@ -36,8 +22,7 @@ def target_of(tool_input):
     """Pick a short, human-readable target from a tool's input."""
     if not isinstance(tool_input, dict):
         return ""
-    # Different tools name their target differently (a file, a command, a URL).
-    # Take the first telling field and keep it short and on one line.
+    # Different tools name their target differently; take the first field that has one.
     for key in ("file_path", "path", "command", "url", "pattern", "query"):
         val = tool_input.get(key)
         if isinstance(val, str) and val:
@@ -46,8 +31,7 @@ def target_of(tool_input):
 
 
 def main():
-    # Single outer boundary: whatever throws, however unexpected, this hook
-    # must still exit 0 rather than crash the tool call it's watching.
+    # Whatever throws, this hook must still exit 0 rather than crash the tool call.
     try:
         payload = read_payload()
         cfg = kumi_state.load()
@@ -62,8 +46,7 @@ def main():
         except OSError:
             return 0
 
-        # One tab-separated line per action: time, short session id, tool,
-        # target. Tabs keep it easy to read and easy to cut or grep later.
+        # One tab-separated line per action: time, short session id, tool, target.
         stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         session = (payload.get("session_id") or "-")[:8]
         tool = payload.get("tool_name") or "-"

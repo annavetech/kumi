@@ -1,26 +1,6 @@
 #!/usr/bin/env python3
-"""Structural check for the routing evals.
-
-This does not call a model. It verifies the eval set in cases.yaml is coherent:
-every case is well-formed, every `expect` names a real skill under ../skills,
-and no prompt is duplicated. The behavioural check (that the expected specialist
-actually fires) is done by invoking each prompt in Claude Code; see README.md.
-
-The eval data lives in cases.yaml, not in this file. This script only parses and
-checks it, using a small YAML subset reader so it needs no dependencies.
-
-Usage (from the plugin root):
-
-    python3 evals/check_cases.py
-
-Exit codes:
-    0  every case is well-formed and points at a real skill
-    1  one or more cases are malformed or point at a missing skill
-    2  usage or environment error (cases file missing, skills dir missing)
-
-Complexity: one linear pass to parse cases, one linear pass to check them; skill
-existence is an O(1) set lookup. Standard library only.
-"""
+"""Structural check for the routing evals in cases.yaml.
+Verifies every case is well-formed and every `expect` names a real skill; does not call a model."""
 
 import os
 import sys
@@ -38,11 +18,7 @@ EXIT_ERROR = 2
 
 
 def load_cases(path):
-    """Parse the fixed-shape cases.yaml without a YAML dependency.
-
-    Only the structure this file uses is supported: a `cases:` list whose items
-    are `- key: value` / `  key: value` blocks with quoted scalar values.
-    """
+    """Parse the fixed-shape cases.yaml without a YAML dependency."""
     cases = []
     current = None
     in_cases = False
@@ -113,6 +89,10 @@ def main():
             if prompt in seen_prompts:
                 problems.append(f"case {i}: duplicate prompt")
             seen_prompts.add(prompt)
+        must, must_not = case.get("must"), case.get("must_not")
+        if (must or must_not) and not (must and must_not):
+            missing = "must" if not must else "must_not"
+            problems.append(f"case {i} ({label}): must/must_not is one-sided, missing '{missing}'")
 
     if not problems:
         for case in cases:

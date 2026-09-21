@@ -1,14 +1,5 @@
 """Shared GitHub REST API helper for kumi's repo-automation scripts.
-
-Standard library only (json, os, urllib.request, urllib.error) — see
-.kumi/decisions/kai/repo-automation.md §0.2: this repo's custom GitHub-API
-logic stays in stdlib Python rather than pulling in actions/github-script's
-Node/JS trust boundary.
-
-GITHUB_TOKEN is read from the environment and sent only as the value of the
-Authorization header. It is never logged, printed, or included in an
-exception message.
-"""
+GITHUB_TOKEN is read from the environment and never logged or printed."""
 
 import json
 import os
@@ -20,15 +11,7 @@ API_ROOT = "https://api.github.com"
 
 
 def github_request(method, path, body=None):
-    """Call the GitHub REST API. Returns (status, json_or_None).
-
-    path is joined onto https://api.github.com as-is (it must start with
-    "/"). body, when given, is JSON-encoded as the request payload. A
-    non-2xx response is not raised: the caller gets the real status code and
-    whatever JSON body GitHub sent back (or None if it didn't parse as
-    JSON), so 404s and other expected failures can be handled by the caller
-    without a try/except around every call.
-    """
+    """Call the GitHub REST API. Returns (status, json_or_None); non-2xx is returned, not raised."""
     url = f"{API_ROOT}{path}"
     data = json.dumps(body).encode("utf-8") if body is not None else None
     request = urllib.request.Request(url, data=data, method=method)
@@ -69,21 +52,18 @@ def remove_label(repo, number, label):
     return status, response
 
 
+def get_pull_request(repo, number):
+    """Fetch a pull request's current state. Returns (status, json_or_None)."""
+    return github_request("GET", f"/repos/{repo}/pulls/{number}")
+
+
 def post_comment(repo, number, body):
     """Post a new comment on an issue or PR."""
     return github_request("POST", f"/repos/{repo}/issues/{number}/comments", {"body": body})
 
 
 def set_commit_status(repo, sha, state, description, context="merge-gate"):
-    """Post a commit status. Returns (status, json).
-
-    state is one of GitHub's four values ("pending", "success", "error",
-    "failure"); merge_gate.py only ever posts "pending" or "success" — see
-    its own docstring for why a PR waiting on labels is "pending", not a
-    failure. description is shown next to the status in the PR's checks
-    list; GitHub truncates it, so callers must keep it within the
-    documented 140-character limit themselves.
-    """
+    """Post a commit status (description max 140 chars). Returns (status, json)."""
     return github_request(
         "POST",
         f"/repos/{repo}/statuses/{sha}",
@@ -99,13 +79,7 @@ def add_assignees(repo, number, assignees):
 
 
 def actor_permission(repo, username):
-    """Return username's permission on repo: "admin", "write", "read", or "none".
-
-    Uses GET /repos/{repo}/collaborators/{username}/permission rather than
-    org membership, because it answers the question that actually matters
-    here — can this account push to *this* repo — and it also covers
-    outside collaborators with write access, not just org members.
-    """
+    """Return username's permission on repo: "admin", "write", "read", or "none"."""
     status, response = github_request(
         "GET", f"/repos/{repo}/collaborators/{username}/permission"
     )
@@ -120,28 +94,7 @@ def is_authorized(repo, username):
 
 
 def report_if_error(context, status, body=None, ignore=()):
-    """Print a non-2xx status (and GitHub's own error message) to stderr.
-
-    Never raises, never fails the job.
-
-    Callers that discard the (status, json) tuple from the helpers above
-    were silently swallowing failed API calls (e.g. a labels POST that 403s
-    because permissions: was wrong). This makes that visible in the job log
-    without turning it into a hard failure.
-
-    body is the json response from the same call (or None): when it carries
-    a "message" (GitHub's standard error field, e.g. "Resource not
-    accessible by integration"), that is printed too, since the status code
-    alone doesn't say which permission was missing. Never print body.get
-    output for a 2xx status, and never the request's own headers or token —
-    GitHub's error bodies don't echo the Authorization header, but callers
-    must not start passing raw headers/tokens in here either.
-
-    ignore lists status codes that are expected/tolerated for this call and
-    must not be reported (e.g. remove_label's documented 404 "already gone"
-    case) — real errors (403, 422, 5xx, and 404 from any other call) are
-    still reported.
-    """
+    """Print a non-2xx status and error message to stderr; ignore lists codes to skip."""
     if status not in ignore and not (200 <= status < 300):
         message = body.get("message") if isinstance(body, dict) else None
         if message:

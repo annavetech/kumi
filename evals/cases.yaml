@@ -1,10 +1,8 @@
 # kumi routing evals
 #
-# Each case is a user prompt and the specialist that should handle it. This is
-# the ground truth for "does the right specialist fire for the right work". The
-# behavioural check is done by invoking the prompt in Claude Code and confirming
-# the expected skill activates; check_cases.py verifies every case is well-formed
-# and targets a real skill, so the set can never drift from the roster.
+# Each case is a user prompt and the specialist that should handle it.
+# check_cases.py checks the set is well-formed; a human (or Claude Code)
+# checks that the expected skill actually fires.
 #
 # Fields:
 #   prompt  - what the user would type
@@ -20,6 +18,21 @@ cases:
   - prompt: "who should handle adding a new column to the dashboard and testing it"
     expect: yui
     why: asks for routing, not for the work itself
+
+  # yui must ask a clarifying question for a vague request, and must not ask
+  # one when the request is already precise. must/must_not name the behavior
+  # a grader checks for, not the exact wording.
+  - prompt: "I want a button on my site that lets people sign up for updates by email"
+    expect: yui
+    why: names no specialist and is missing what to build, where it goes, or what done looks like
+    must: "asks a clarifying question before proposing a plan"
+    must_not: "starts dispatching a specialist without asking anything first"
+
+  - prompt: "add a paginated Go endpoint for recent activity and a React panel for it, with tests and review"
+    expect: yui
+    why: names no specialist and is already precise about what to build, where it goes, and what done looks like
+    must: "states a one-line plan and asks for a go-ahead, without any clarifying question"
+    must_not: "asks the user any clarifying question before proposing the plan"
 
   # Architecture (cross-cutting: design before code, any stack).
   - prompt: "design the shape of a new pagination API before we write any code"

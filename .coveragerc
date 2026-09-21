@@ -12,3 +12,4 @@ include =
     */scripts/*
     */tests/*
     */evals/*
+    */.github/scripts/*

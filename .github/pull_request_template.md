@@ -31,5 +31,5 @@ By submitting this pull request, I confirm my contribution is made under the
 terms of the MIT license (see [LICENSE](../LICENSE)), and that I have read
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-Found a security issue instead of a bug? Do not open a public PR — see
+Found a security issue instead of a bug? Do not open a public PR. See
 [SECURITY.md](../SECURITY.md).

@@ -21,7 +21,7 @@ kumi is a framework, so adding a specialist is uniform and mechanical. Every ski
 
 That is the whole process. You do not touch any other specialist, and you do not change the coordinator's logic, only its role table. You also do not write the subagent by hand; it is generated from the skill.
 
-## The contract, in short
+## The contract
 
 Every specialist is one of three shapes, and they stay consistent within a shape:
 
@@ -35,7 +35,7 @@ When you add a new stack (say Python), the natural shape is a new implement/debu
 
 ## Other operations
 
-To disable, modify, remove, or rename a specialist, or to add a whole new stack, see [docs/MANAGING-SPECIALISTS.md](docs/MANAGING-SPECIALISTS.md), which has the exact steps for each. In short: edit `skills/<name>/SKILL.md`, keep the section structure intact, and run the validator before opening a change.
+To disable, modify, remove, or rename a specialist, or to add a whole new stack, see [docs/MANAGING-SPECIALISTS.md](docs/MANAGING-SPECIALISTS.md), which has the exact steps for each: edit `skills/<name>/SKILL.md`, keep the section structure intact, and run the validator before opening a change.
 
 ## Style
 

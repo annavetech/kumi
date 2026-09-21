@@ -51,6 +51,8 @@ To disable the **entire** plugin (as an end user, not an author), use Claude Cod
 claude plugin disable kumi
 ```
 
+Disabling, uninstalling, or reinstalling kumi this way never touches a project's `.kumi` directory. Confirmed directly: `claude plugin disable kumi`, `enable`, `uninstall`, and `install kumi@kumi` were each run against a real `.kumi` directory. Its contents and timestamps were checked after each step and did not change. The directory is ordinary project files. It stays in place and stays readable whether or not kumi is installed. Deleting it is your own decision; no plugin lifecycle command does it for you.
+
 ## Modify an existing specialist
 
 1. Edit its `skills/<name>/SKILL.md`. Keep the section structure intact, same sections, same order. Change the wording, the checklist, the gate, whatever the specialist needs.

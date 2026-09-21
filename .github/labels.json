@@ -27,13 +27,13 @@
     {"name": "size/XXL", "color": "1b5e20", "description": "1000 or more lines changed."},
 
     {"name": "area/skills", "color": "bfd4f2", "description": "skills/"},
-    {"name": "area/agents", "color": "bfd4f2", "description": "agents/ (generated — see scripts/build_agents.py)"},
+    {"name": "area/agents", "color": "bfd4f2", "description": "agents/ (generated: see scripts/build_agents.py)"},
     {"name": "area/hooks", "color": "bfd4f2", "description": "hooks/ (memory, observability, shared state)"},
     {"name": "area/scripts", "color": "bfd4f2", "description": "scripts/ (the plugin's own tooling, e.g. build_agents.py)"},
     {"name": "area/tests", "color": "bfd4f2", "description": "tests/ and evals/"},
     {"name": "area/docs", "color": "bfd4f2", "description": "docs/, examples/, and root-level *.md"},
     {"name": "area/config", "color": "bfd4f2", "description": "config/, template/, .claude-plugin/"},
-    {"name": "area/ci", "color": "bfd4f2", "description": ".github/ — workflows and repo automation"},
+    {"name": "area/ci", "color": "bfd4f2", "description": ".github/: workflows and repo automation"},
 
     {"name": "do-not-merge/hold", "color": "b60205", "description": "Blocks merge until removed. Set by /hold, cleared by /unhold."},
     {"name": "do-not-merge/work-in-progress", "color": "e99695", "description": "Not ready for review or merge yet."},

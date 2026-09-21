@@ -1,17 +1,6 @@
 #!/usr/bin/env python3
 """kumi size labels (pull_request_target: opened, synchronize, reopened).
-
-Buckets a PR by lines changed (additions + deletions), read directly from
-the webhook's own pull_request object — no diff to fetch, no checkout of PR
-content needed for the calculation. Thresholds are the standard
-Kubernetes/Prow `size` plugin defaults, reused as-is.
-
-Removes every size/* label the PR currently carries, then adds the one
-computed bucket, so a `synchronize` push that shrinks or grows a PR across a
-boundary doesn't leave stale labels behind.
-
-Standard library only.
-"""
+Buckets a PR by lines changed using the standard Kubernetes/Prow `size` plugin thresholds."""
 
 import json
 import os

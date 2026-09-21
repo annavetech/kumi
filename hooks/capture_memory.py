@@ -1,22 +1,6 @@
 #!/usr/bin/env python3
 """kumi memory capture hook (Stop, SubagentStop).
-
-Runs when an agent finishes and appends a snapshot of the project's kumi state
-to an append-only memory log, so a finished task's context survives into later
-sessions. Capture is driven by the runtime, not by any specialist remembering to
-save, so it is guaranteed rather than best-effort. Its counterpart is
-restore_memory.py, which reads this log back at the start of a new session.
-
-File names come from config/runtime.json (via kumi_state), so nothing here is
-hardcoded. The hook always exits 0 and never raises: a memory hook must never
-block or fail the agent it serves. Standard library only.
-
-Exit code: always 0.
-
-Complexity: reads the handoff once and walks the decisions tree once (linear in
-the number of state files); a content hash guards against re-logging unchanged
-state, so repeated stops do no extra work.
-"""
+Appends a snapshot of kumi state to an append-only log; restore_memory.py reads it back."""
 
 import datetime
 import hashlib
@@ -28,8 +12,7 @@ import kumi_state
 
 
 def read_payload():
-    # The hook payload arrives as JSON on stdin. Empty or malformed input is
-    # tolerated: this hook must never be the reason an agent fails.
+    # Empty or malformed input is tolerated: this hook must never fail an agent's run.
     try:
         raw = sys.stdin.read()
         return json.loads(raw) if raw.strip() else {}
@@ -38,8 +21,7 @@ def read_payload():
 
 
 def main():
-    # Single outer boundary: whatever throws, however unexpected, this hook
-    # must still exit 0 rather than crash the run it's watching.
+    # Whatever throws, this hook must still exit 0 rather than crash the run.
     try:
         payload = read_payload()
         if payload.get("stop_hook_active"):
@@ -60,9 +42,7 @@ def main():
             except OSError:
                 handoff = ""
 
-        # Collect every decision file the roles wrote. Store paths relative to
-        # the state dir so the log reads the same no matter where the project
-        # lives.
+        # Paths are relative to the state dir so the log reads the same everywhere.
         decisions = []
         decisions_dir = os.path.join(kumi, cfg["dirs"]["decisions"])
         if os.path.isdir(decisions_dir):
@@ -83,9 +63,7 @@ def main():
         except OSError:
             return 0
 
-        # Fingerprint the current state. If it matches the last capture, the
-        # project hasn't changed since the previous stop, so there is nothing
-        # new to log.
+        # Fingerprint the current state to skip logging when nothing has changed.
         signature = hashlib.sha256(
             "\n".join([handoff] + decisions).encode("utf-8")
         ).hexdigest()
