@@ -1,17 +1,6 @@
 #!/usr/bin/env python3
 """kumi auto-assign (issues: opened, pull_request_target: opened).
-
-CODEOWNERS already gets GitHub to request review on PRs for free; there is
-no equivalent for assignment, and CODEOWNERS does not apply to issues at
-all. This script covers that other half: an issue is assigned to the
-maintainer, a PR is assigned to its own author, purely so it shows up on
-someone's plate for tracking.
-
-Always exits 0: a cosmetic assignment failing (e.g. a 422 because the actor
-cannot be assigned) must never fail a PR or issue.
-
-Standard library only.
-"""
+Assigns an issue to the maintainer and a PR to its own author. Always exits 0."""
 
 import json
 import os

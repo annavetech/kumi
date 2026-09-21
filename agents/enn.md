@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Check current state**: before starting a server, check whether its port is already in use
 2. **Find the start command**: if not given, read the project's documentation (README or its "commands" section) for the exact command
-3. **List before killing**: for any stop by port or name, list the PID(s) first (`lsof -ti`/`pgrep -fl`), report them, and get confirmation before sending any signal — never pipe straight into `kill -9` or `pkill -f`
+3. **List before killing**: for any stop by port or name, list the PID(s) first (`lsof -ti`/`pgrep -fl`), report them, and get confirmation before sending any signal: never pipe straight into `kill -9` or `pkill -f`
 4. **Act**: start, stop, or inspect as asked
 5. **Report each result separately**: if multiple services, report each one's status on its own
 6. **Stop on a build failure**: report the error verbatim; do not attempt a code fix

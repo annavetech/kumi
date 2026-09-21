@@ -1,24 +1,6 @@
 #!/usr/bin/env python3
 """Validate that every skill conforms to the kumi skill contract.
-
-The contract itself lives in config/contract.json, not in this file, so the
-rules can be changed without editing code. This script only enforces whatever
-that file declares: required frontmatter keys, required metadata keys, a
-hard-gate block, and the required sections in order.
-
-Usage (from the plugin root):
-
-    python3 tests/validate_skills.py
-
-Exit codes:
-    0  all skills valid
-    1  one or more skills failed validation
-    2  usage or environment error (config missing, skills dir missing, bad JSON)
-
-Complexity: each skill file is read once and scanned in a single linear pass
-(O(n) in the file size); section order is checked with one forward scan, no
-re-reads. Standard library only.
-"""
+The contract itself lives in config/contract.json, so the rules can change without editing code."""
 
 import json
 import os
@@ -82,8 +64,7 @@ def check_skill(path, contract):
     if gate["open"] not in body or gate["close"] not in body:
         problems.append(f"missing {gate['open']} block")
 
-    # Walk the required sections in order. Each must appear later in the file
-    # than the one before it, which is what keeps every skill the same shape.
+    # Each section must appear later in the file than the one before it.
     ordered = contract.get("sections_must_be_ordered", True)
     last_index = -1
     for section in contract["required_sections"]:

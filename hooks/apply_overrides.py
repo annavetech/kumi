@@ -1,29 +1,6 @@
 #!/usr/bin/env python3
 """kumi override-rules hook (SessionStart).
-
-Lets a user add or change rules without touching any source file. If the project
-has an overrides file (overrides.json in the kumi state directory), this reads it
-at the start of a session and injects the rules as house rules on top of the
-built-in ones. It is the same idea as a CLAUDE.md, but structured per specialist.
-
-The file's shape is a map from "all" or a specialist's name to a list of rule
-objects, each with a "rule" field:
-
-    {
-      "all": [
-        { "rule": "Prefer table-driven tests." }
-      ],
-      "jaan": [
-        { "rule": "Use the project's error-wrapping helper." }
-      ]
-    }
-
-A plain string is also accepted in place of an object, so a hand-edited file is
-forgiving. See config/overrides.example.json for a template. Always exits 0 and
-never raises. Standard library only.
-
-Exit code: always 0.
-"""
+Reads the project's overrides.json, if any, and injects its rules as house rules for the session."""
 
 import json
 import os
@@ -50,8 +27,7 @@ def rule_text(item):
 
 
 def main():
-    # Single outer boundary: whatever throws, however unexpected, this hook
-    # must still exit 0 rather than crash the session it's watching.
+    # Whatever throws, this hook must still exit 0 rather than crash the session.
     try:
         payload = read_payload()
         cfg = kumi_state.load()
@@ -70,9 +46,7 @@ def main():
         if not isinstance(data, dict):
             return 0
 
-        # Each top-level key is either "all" (rules for the whole team) or a
-        # specialist's name (rules just for that one). "_comment" is the
-        # human note in the template and is skipped.
+        # "_comment" is the human note in the template and is skipped.
         lines = []
         for key, items in data.items():
             if key == "_comment" or not isinstance(items, list):

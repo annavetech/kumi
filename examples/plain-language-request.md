@@ -12,7 +12,7 @@ You don't need to know any specialist's name, or even the right technical term, 
 
 **yui** reads the request. It's a real feature, but the request does not say which part of the app this touches or what "signs up" should actually do, so it asks first instead of guessing.
 
-> A couple of quick questions before I start: where does the signup form go — a page you already have, or a new one? And when someone signs up, should their email just be saved somewhere for now, or does it need to go into a mailing list tool you already use?
+> A couple of quick questions before I start. Where does the signup form go: a page you already have, or a new one? And when someone signs up, should their email just be saved somewhere for now, or does it need to go into a mailing list tool you already use?
 
 You answer: an existing page, and for now just save the email somewhere kumi can find it later.
 
