@@ -8,5 +8,6 @@
   "homepage": "https://github.com/annavetech/kumi",
   "repository": "https://github.com/annavetech/kumi",
   "license": "MIT",
+  "icon": "./assets/brand/kumi-mark.svg",
   "keywords": ["agents", "orchestration", "engineering-team", "memory", "subagents", "go", "angular", "ios", "python", "react", "sql", "nosql", "code-review"]
 }

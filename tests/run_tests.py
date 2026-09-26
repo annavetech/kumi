@@ -594,26 +594,69 @@ def test_strip_stale_approval_exits_clean_without_token():
         bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}")
 
 
-def test_validate_claude_manifest_job_pins_checksum_safely():
-    # The job must pin a literal sha256, never pipe curl to bash, and claim no unverified signature.
-    path = os.path.join(ROOT, ".github", "workflows", "ci.yml")
-    with open(path, encoding="utf-8") as f:
+def test_validate_claude_manifest_job_pins_npm_version_safely():
+    # The job installs claude with npm ci, pinned by the lockfile integrity hashes.
+    name = "validate-claude-manifest job installs the claude CLI from a pinned npm lockfile"
+    problems = []
+
+    ci_path = os.path.join(ROOT, ".github", "workflows", "ci.yml")
+    with open(ci_path, encoding="utf-8") as f:
         text = f.read()
     job_marker = "\n  validate-claude-manifest:\n"
     if job_marker not in text:
-        bad("validate-claude-manifest job pins a sha256 literal safely", "job not found in ci.yml")
+        bad(name, "job not found in ci.yml")
         return
     job_text = text[text.index(job_marker):]
 
-    problems = []
-    if not re.search(r'"[a-f0-9]{64}"', job_text):
-        problems.append("no 64-hex sha256 literal found")
-    if re.search(r"curl[^\n|]*\|\s*bash", job_text):
-        problems.append("pipes curl output straight to bash")
-    if re.search(r"(?i)gpg|signed", job_text):
-        problems.append("claims a signature ('GPG'/'signed') the job does not verify")
+    forbidden = {
+        "curl": r"\bcurl\b",
+        "wget": r"\bwget\b",
+        "pipe to a shell": r"\|\s*(sh|bash)\b",
+        "npx": r"\bnpx\b",
+        "bunx": r"\bbunx\b",
+        "uvx": r"\buvx\b",
+        "pipx run": r"\bpipx\s+run\b",
+        "pnpm dlx": r"\bpnpm\s+dlx\b",
+        "yarn dlx": r"\byarn\s+dlx\b",
+    }
+    found = [label for label, pattern in forbidden.items() if re.search(pattern, job_text)]
+    if found:
+        problems.append(f"forbidden installer(s) found: {', '.join(found)}")
+    if "npm ci" not in job_text:
+        problems.append("job never runs npm ci")
+    if "working-directory: .github/claude-cli" not in job_text:
+        problems.append("npm ci does not run with working-directory: .github/claude-cli")
+    if "--ignore-scripts" in job_text:
+        problems.append(
+            "npm ci uses --ignore-scripts, which skips the postinstall that places the binary"
+        )
 
-    name = "validate-claude-manifest job pins a sha256 literal safely"
+    package_json_path = os.path.join(ROOT, ".github", "claude-cli", "package.json")
+    lock_path = os.path.join(ROOT, ".github", "claude-cli", "package-lock.json")
+    with open(package_json_path, encoding="utf-8") as f:
+        package_json = json.load(f)
+    with open(lock_path, encoding="utf-8") as f:
+        lock = json.load(f)
+
+    pkg_name = "@anthropic-ai/claude-code"
+    version = package_json.get("dependencies", {}).get(pkg_name)
+    if not version or not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        problems.append(f"package.json does not pin an exact X.Y.Z version, got {version!r}")
+
+    packages = lock.get("packages", {})
+    main_pkg = packages.get(f"node_modules/{pkg_name}", {})
+    linux_pkg = packages.get(f"node_modules/{pkg_name}-linux-x64", {})
+    if main_pkg.get("version") != version:
+        problems.append(f"lockfile main package version {main_pkg.get('version')!r} != {version!r}")
+    if linux_pkg.get("version") != version:
+        problems.append(
+            f"lockfile linux-x64 package version {linux_pkg.get('version')!r} != {version!r}"
+        )
+    for label, pkg in (("main package", main_pkg), ("linux-x64 package", linux_pkg)):
+        integrity = pkg.get("integrity", "")
+        if not integrity.startswith("sha512-"):
+            problems.append(f"{label} integrity does not start with sha512-: {integrity!r}")
+
     if problems:
         bad(name, "; ".join(problems))
     else:
@@ -1157,7 +1200,7 @@ def main():
     test_strip_stale_approval_fails_closed_on_status_post_error()
     test_merge_gate_exits_clean_without_token()
     test_strip_stale_approval_exits_clean_without_token()
-    test_validate_claude_manifest_job_pins_checksum_safely()
+    test_validate_claude_manifest_job_pins_npm_version_safely()
     test_no_emoji_under_github()
     test_all_real_skills_pass()
     test_eval_cases_pass()

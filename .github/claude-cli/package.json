@@ -1,0 +1,9 @@
+{
+  "name": "claude-cli-pin",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Pins the claude CLI version used by validate-claude-manifest.",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.283"
+  }
+}
