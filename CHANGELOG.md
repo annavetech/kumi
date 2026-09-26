@@ -2,6 +2,13 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+- Added a plugin icon (`assets/brand/kumi-mark.svg`) to `plugin.json`.
+- Removed `assets/brand/favicon.ico`.
+- CI now installs the `claude` CLI from npm, pinned to an exact version by a lockfile in `.github/claude-cli/`, instead of downloading the binary with `curl`. The pinned version is now 2.1.283, which recognises the `icon` field.
+- Dependabot now opens update pull requests for the pinned `claude` CLI.
+
 ## [1.2.0] - 2026-09-21
 
 - Added sora, a DevOps specialist for containers, CI/CD, infrastructure as code and deploys.

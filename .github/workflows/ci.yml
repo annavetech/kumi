@@ -60,27 +60,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      # Downloads the claude binary directly (skips install.sh) and only makes
-      # it executable once its sha256 matches CLAUDE_CODE_LINUX_X64_SHA256.
-      - name: Install claude CLI (pinned, checksum-verified)
-        env:
-          CLAUDE_CODE_VERSION: "2.1.273"
-          # sha256 of the CLAUDE_CODE_VERSION linux-x64 binary, from that version's manifest.json.
-          # To bump the version: update CLAUDE_CODE_VERSION, then copy the new manifest's checksum here.
-          CLAUDE_CODE_LINUX_X64_SHA256: "6c752e2cc7c110c9df15f26d8d134d438c5ae95dbd610efc1a308bf7f9c5f6c1"
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "22"
+      # Installs the claude CLI pinned by .github/claude-cli/package-lock.json.
+      - name: Install claude CLI (npm, pinned by lockfile)
+        working-directory: .github/claude-cli
         run: |
-          set -euo pipefail
-          bin="$RUNNER_TEMP/claude"
-          curl -fsSL -o "$bin" "https://downloads.claude.ai/claude-code-releases/$CLAUDE_CODE_VERSION/linux-x64/claude"
-          actual=$(sha256sum "$bin" | cut -d' ' -f1)
-          if [ "$actual" != "$CLAUDE_CODE_LINUX_X64_SHA256" ]; then
-            echo "claude $CLAUDE_CODE_VERSION checksum mismatch: expected $CLAUDE_CODE_LINUX_X64_SHA256, got $actual" >&2
-            exit 1
-          fi
-          chmod +x "$bin"
-          mkdir -p "$HOME/.local/bin"
-          mv "$bin" "$HOME/.local/bin/claude"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          npm ci
+          echo "$GITHUB_WORKSPACE/.github/claude-cli/node_modules/.bin" >> "$GITHUB_PATH"
       # "." validates marketplace.json and plugin.json (kumi lists itself as a plugin entry), but not skill or agent files.
       # ./skills and ./agents run separately to cover every SKILL.md and agents/*.md.
       - name: Validate the plugin and marketplace manifests

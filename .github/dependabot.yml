@@ -25,3 +25,16 @@ updates:
     labels: ["dependencies", "area/ci"]
     commit-message:
       prefix: "ci"
+
+  - package-ecosystem: "npm"
+    directory: "/.github/claude-cli"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      claude-cli:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "area/ci"]
+    commit-message:
+      prefix: "ci"

@@ -34,7 +34,7 @@ claude plugin validate ./skills --strict
 claude plugin validate ./agents --strict
 ```
 
-The `validate-claude-manifest` job downloads the `linux-x64` `claude` binary straight to a file and checks its sha256 against a literal pinned in the job (`CLAUDE_CODE_LINUX_X64_SHA256`) before it is ever made executable; nothing is piped to a shell. To bump `CLAUDE_CODE_VERSION`: fetch `https://downloads.claude.ai/claude-code-releases/<new version>/manifest.json`, copy `platforms.linux-x64.checksum` into `CLAUDE_CODE_LINUX_X64_SHA256`, then independently download `https://downloads.claude.ai/claude-code-releases/<new version>/linux-x64/claude` and run `sha256sum` on it to confirm the two agree before trusting either. That checksum only proves the downloaded bytes match what Anthropic published at that URL; it is not a signature.
+The `validate-claude-manifest` job installs `claude` from npm with `npm ci` in `.github/claude-cli`. The integrity hashes in `package-lock.json` pin the exact package and its native binary. Install scripts stay enabled because the package's postinstall step places the native binary. To bump the version, edit `package.json` in that folder and regenerate `package-lock.json`, or merge the Dependabot pull request that does both.
 
 ## Adding a specialist
 
