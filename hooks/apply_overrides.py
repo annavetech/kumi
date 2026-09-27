@@ -3,7 +3,6 @@
 Reads the project's overrides.json, if any, and injects its rules as house rules for the session."""
 
 import json
-import os
 import sys
 
 import kumi_state
@@ -17,15 +16,6 @@ def read_payload():
         return {}
 
 
-def rule_text(item):
-    """Accept either a {'rule': '...'} object or a plain string."""
-    if isinstance(item, dict):
-        return str(item.get("rule", "")).strip()
-    if isinstance(item, str):
-        return item.strip()
-    return ""
-
-
 def main():
     # Whatever throws, this hook must still exit 0 rather than crash the session.
     try:
@@ -34,28 +24,12 @@ def main():
         project = kumi_state.project_dir(payload)
         kumi = kumi_state.state_dir(project, cfg)
 
-        path = os.path.join(kumi, cfg["files"]["overrides"])
-        if not os.path.isfile(path):
-            return 0  # no overrides in this project
-
-        try:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-        except (OSError, ValueError):
-            return 0
-        if not isinstance(data, dict):
-            return 0
-
-        # "_comment" is the human note in the template and is skipped.
+        overrides = kumi_state.load_overrides(kumi, cfg)
         lines = []
-        for key, items in data.items():
-            if key == "_comment" or not isinstance(items, list):
-                continue
+        for key, texts in overrides.items():
             who = "every specialist" if key == "all" else key
-            for item in items:
-                text = rule_text(item)
-                if text:
-                    lines.append(f"- ({who}) {text}")
+            for text in texts:
+                lines.append(f"- ({who}) {text}")
 
         if not lines:
             return 0

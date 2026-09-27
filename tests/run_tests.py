@@ -859,7 +859,7 @@ def test_hooks_never_fail():
     ]
     hooks = [
         "capture_memory", "restore_memory", "log_activity", "record_metrics",
-        "apply_overrides", "ensure_state",
+        "apply_overrides", "ensure_state", "inject_specialist_context",
     ]
     all_ok = True
     try:
@@ -1938,6 +1938,320 @@ def test_ensure_state_kumi_state_dir_relative_anchors_to_repo_root():
         shutil.rmtree(project, ignore_errors=True)
 
 
+COMPLETE_BRIEF = (
+    "Goal: fix the bug.\nOutput format: a patch.\nWhere to look: hooks/apply_overrides.py.\n"
+    "Limits: only that file."
+)
+
+
+def run_inject_specialist_context(payload_obj, proc_cwd=None):
+    """Run inject_specialist_context.py with a JSON payload on stdin."""
+    stdin = json.dumps(payload_obj) if payload_obj is not None else ""
+    return subprocess.run(
+        [sys.executable, os.path.join(ROOT, "hooks", "inject_specialist_context.py")],
+        input=stdin, capture_output=True, text=True, cwd=proc_cwd,
+    )
+
+
+def test_inject_specialist_context_noop_paths():
+    project = tempfile.mkdtemp()
+    try:
+        cases = [
+            (
+                "inject_specialist_context does nothing on a non-kumi tool call",
+                {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+            ),
+            (
+                "inject_specialist_context does nothing on a Skill-tool call",
+                {"tool_name": "Skill", "tool_input": {"skill": "kumi:eero"}},
+            ),
+            (
+                "inject_specialist_context does nothing when overrides.json does not exist",
+                {
+                    "tool_name": "Agent",
+                    "tool_input": {"subagent_type": "kumi:eero", "prompt": COMPLETE_BRIEF},
+                    "cwd": project,
+                },
+            ),
+        ]
+        for label, payload in cases:
+            r = run_inject_specialist_context(payload)
+            if r.returncode == 0 and r.stdout == "":
+                ok(label)
+            else:
+                bad(label, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_emits_updated_input():
+    project = tempfile.mkdtemp()
+    try:
+        kumi_dir = os.path.join(project, ".kumi")
+        os.makedirs(kumi_dir)
+        overrides = {
+            "all": [{"rule": "Prefer table-driven tests."}],
+            "eero": [{"rule": "Use type hints everywhere."}],
+        }
+        with open(os.path.join(kumi_dir, "overrides.json"), "w", encoding="utf-8") as f:
+            json.dump(overrides, f)
+        payload = {
+            "tool_name": "Agent",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": COMPLETE_BRIEF},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload)
+        name = "inject_specialist_context emits updatedInput carrying the matching rules"
+        try:
+            out = json.loads(r.stdout)
+            updated_prompt = out["hookSpecificOutput"]["updatedInput"]["prompt"]
+            decision = out["hookSpecificOutput"]["permissionDecision"]
+        except Exception as e:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr} err={e}")
+            return
+        if (
+            r.returncode == 0
+            and decision == "allow"
+            and "Prefer table-driven tests." in updated_prompt
+            and "Use type hints everywhere." in updated_prompt
+        ):
+            ok(name)
+        else:
+            bad(name, f"stdout={r.stdout!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_complete_passes():
+    project = tempfile.mkdtemp()
+    try:
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": COMPLETE_BRIEF},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload, proc_cwd=project)
+        name = "a brief with all four parts passes the hook"
+        if r.returncode == 0 and r.stdout == "":
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_missing_part_denied():
+    project = tempfile.mkdtemp()
+    try:
+        incomplete = (
+            "Goal: fix the bug.\nWhere to look: hooks/apply_overrides.py.\nLimits: only that"
+        )
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": incomplete},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload, proc_cwd=project)
+        name = "a brief missing one part is denied, and the message names that part"
+        try:
+            out = json.loads(r.stdout)
+            decision = out["hookSpecificOutput"]["permissionDecision"]
+            reason = out["hookSpecificOutput"]["permissionDecisionReason"]
+        except Exception as e:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr} err={e}")
+            return
+        if r.returncode == 0 and decision == "deny" and "output format" in reason:
+            ok(name)
+        else:
+            bad(name, f"decision={decision!r} reason={reason!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_four_empty_labels_denied():
+    project = tempfile.mkdtemp()
+    try:
+        empty_labels = "Goal:\nOutput format:\nWhere to look:\nLimits:"
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": empty_labels},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload, proc_cwd=project)
+        name = "a brief with four empty labels is denied, not treated as complete"
+        try:
+            out = json.loads(r.stdout)
+            decision = out["hookSpecificOutput"]["permissionDecision"]
+            reason = out["hookSpecificOutput"]["permissionDecisionReason"]
+        except Exception as e:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr} err={e}")
+            return
+        if (
+            r.returncode == 0
+            and decision == "deny"
+            and all(p in reason for p in ("goal", "output format", "where to look", "limits"))
+        ):
+            ok(name)
+        else:
+            bad(name, f"decision={decision!r} reason={reason!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_accepted_label_forms():
+    project = tempfile.mkdtemp()
+    briefs = {
+        "numbered list markers": (
+            "1. Goal: fix bug\n2. Output format: diff\n3. Where to look: repo\n4. Limits: one file"
+        ),
+        "bullet markers": (
+            "* Goal: fix bug\n* Output format: diff\n* Where to look: repo\n* Limits: one file"
+        ),
+        "dash separator instead of colon": (
+            "Goal - fix bug\nOutput format - diff\nWhere to look - repo\nLimits - one file"
+        ),
+    }
+    try:
+        for label, prompt in briefs.items():
+            payload = {
+                "tool_name": "Task",
+                "tool_input": {"subagent_type": "kumi:eero", "prompt": prompt},
+                "cwd": project,
+            }
+            r = run_inject_specialist_context(payload, proc_cwd=project)
+            name = f"an accepted brief form passes the hook: {label}"
+            if r.returncode == 0 and r.stdout == "":
+                ok(name)
+            else:
+                bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_punctuation_only_denied():
+    project = tempfile.mkdtemp()
+    try:
+        punctuation_only = "Goal: -\nOutput format: .\nWhere to look: ...\nLimits: -"
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": punctuation_only},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload, proc_cwd=project)
+        name = "a brief whose parts are bare punctuation is denied, not treated as content"
+        try:
+            out = json.loads(r.stdout)
+            decision = out["hookSpecificOutput"]["permissionDecision"]
+            reason = out["hookSpecificOutput"]["permissionDecisionReason"]
+        except Exception as e:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr} err={e}")
+            return
+        if (
+            r.returncode == 0
+            and decision == "deny"
+            and all(p in reason for p in ("goal", "output format", "where to look", "limits"))
+        ):
+            ok(name)
+        else:
+            bad(name, f"decision={decision!r} reason={reason!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_short_real_content_passes():
+    project = tempfile.mkdtemp()
+    try:
+        short_real = "Goal: ok\nOutput format: ok\nWhere to look: x1\nLimits: none"
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": short_real},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload, proc_cwd=project)
+        name = "a brief with short but real one-word answers passes the hook"
+        if r.returncode == 0 and r.stdout == "":
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_markdown_headings_accepted():
+    project = tempfile.mkdtemp()
+    try:
+        heading_brief = (
+            "## Goal\nFix the login bug.\n## Output format\nA diff.\n"
+            "## Where to look\nauth/session.py\n## Limits\nOnly that file."
+        )
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": heading_brief},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload, proc_cwd=project)
+        name = "a brief written as markdown headings with content below passes the hook"
+        if r.returncode == 0 and r.stdout == "":
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_brief_empty_markdown_headings_denied():
+    project = tempfile.mkdtemp()
+    try:
+        empty_headings = "## Goal\n## Output format\n## Where to look\n## Limits"
+        payload = {
+            "tool_name": "Task",
+            "tool_input": {"subagent_type": "kumi:eero", "prompt": empty_headings},
+            "cwd": project,
+        }
+        r = run_inject_specialist_context(payload, proc_cwd=project)
+        name = "markdown headings with no content below are still denied"
+        try:
+            out = json.loads(r.stdout)
+            decision = out["hookSpecificOutput"]["permissionDecision"]
+        except Exception as e:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr} err={e}")
+            return
+        if r.returncode == 0 and decision == "deny":
+            ok(name)
+        else:
+            bad(name, f"decision={decision!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def run_apply_overrides(payload_obj, proc_cwd=None):
+    """Run apply_overrides.py with a JSON payload on stdin."""
+    stdin = json.dumps(payload_obj) if payload_obj is not None else ""
+    return subprocess.run(
+        [sys.executable, os.path.join(ROOT, "hooks", "apply_overrides.py")],
+        input=stdin, capture_output=True, text=True, cwd=proc_cwd,
+    )
+
+
+def test_load_overrides_skips_file_over_size_cap():
+    project = tempfile.mkdtemp()
+    try:
+        kumi_dir = os.path.join(project, ".kumi")
+        os.makedirs(kumi_dir)
+        oversized = {"all": [{"rule": "x" * 70000}]}
+        with open(os.path.join(kumi_dir, "overrides.json"), "w", encoding="utf-8") as f:
+            json.dump(oversized, f)
+        payload = {"cwd": project}
+        r = run_apply_overrides(payload, proc_cwd=project)
+        name = "load_overrides skips an oversized overrides.json quietly, rather than failing"
+        if r.returncode == 0 and r.stdout == "":
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
 def main():
     try:
         contract = load_contract(CONTRACT)
@@ -2014,6 +2328,17 @@ def main():
     test_ensure_state_resolves_symlinked_ancestor()
     test_ensure_state_git_root_wins_over_stray_kumi_above()
     test_ensure_state_kumi_state_dir_relative_anchors_to_repo_root()
+    test_inject_specialist_context_noop_paths()
+    test_inject_specialist_context_emits_updated_input()
+    test_inject_specialist_context_brief_complete_passes()
+    test_inject_specialist_context_brief_missing_part_denied()
+    test_inject_specialist_context_brief_four_empty_labels_denied()
+    test_inject_specialist_context_brief_accepted_label_forms()
+    test_inject_specialist_context_brief_punctuation_only_denied()
+    test_inject_specialist_context_brief_short_real_content_passes()
+    test_inject_specialist_context_brief_markdown_headings_accepted()
+    test_inject_specialist_context_brief_empty_markdown_headings_denied()
+    test_load_overrides_skips_file_over_size_cap()
     print()
     print(f"{PASS} passed, {FAIL} failed")
     return 1 if FAIL else 0

@@ -21,6 +21,12 @@
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
         ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/inject_specialist_context.py\"" }
+        ]
       }
     ],
     "UserPromptExpansion": [

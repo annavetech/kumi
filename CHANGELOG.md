@@ -14,6 +14,8 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - Added `config/house_rules.md`, kumi's own shared behavior rules, now baked into every generated specialist agent.
 - Specialist skills now ask a specific question when something is unclear, instead of describing themselves as waiting for a go-ahead they have no channel to receive.
 - Fixed: `yui`'s own instructions told it not to verify a specialist's work; it now checks that a specialist's required steps were actually run and reported.
+- Added `hooks/inject_specialist_context.py`, a hook that delivers scoped project rules into a directly-dispatched specialist's prompt.
+- A specialist dispatch now requires a brief with `Goal:`, `Output format:`, `Where to look:`, and `Limits:`; an incomplete brief is denied back to the coordinator.
 
 ## [1.2.0] - 2026-09-21
 

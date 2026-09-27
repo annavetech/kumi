@@ -80,3 +80,43 @@ def state_dir_at(anchor, cfg):
 def state_dir(project, cfg):
     """Return the base state directory; KUMI_STATE_DIR overrides the config's `state_dir`."""
     return state_dir_at(resolve_anchor(project, cfg), cfg)
+
+
+def _rule_text(item):
+    """Accept either a {'rule': '...'} object or a plain string."""
+    if isinstance(item, dict):
+        return str(item.get("rule", "")).strip()
+    if isinstance(item, str):
+        return item.strip()
+    return ""
+
+
+_MAX_OVERRIDES_BYTES = 65536  # a project's rule file has no reason to exceed 64 KiB
+
+
+def load_overrides(kumi, cfg):
+    """Read overrides.json from the state dir, if present, into {scope: [rule_text, ...]}.
+    Skips "_comment" and any non-list scope; missing, oversized, or malformed file returns {}."""
+    path = os.path.join(kumi, cfg["files"]["overrides"])
+    if not os.path.isfile(path):
+        return {}
+    try:
+        if os.path.getsize(path) > _MAX_OVERRIDES_BYTES:
+            return {}
+    except OSError:
+        return {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    result = {}
+    for key, items in data.items():
+        if key == "_comment" or not isinstance(items, list):
+            continue
+        texts = [t for t in (_rule_text(item) for item in items) if t]
+        if texts:
+            result[key] = texts
+    return result
