@@ -2,7 +2,7 @@
 name: saku
 description: "Handles relational database work: designing schema, writing and tuning SQL, and writing safe migrations, always from the current schema. Send document and key-value work to remo."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: cyan
 ---
 

@@ -2,11 +2,11 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - 2026-09-27
 
 - Added a plugin icon (`assets/brand/kumi-mark.svg`) to `plugin.json`.
 - Removed `assets/brand/favicon.ico`.
-- CI now installs the `claude` CLI from npm, pinned to an exact version by a lockfile in `.github/claude-cli/`, instead of downloading the binary with `curl`. The pinned version is now 2.1.283, which recognises the `icon` field.
+- CI now installs the `claude` CLI from npm, pinned to an exact version by a lockfile in `.github/claude-cli/`. The pinned version is now 2.1.283, which recognises the `icon` field.
 - Dependabot now opens update pull requests for the pinned `claude` CLI.
 - Fixed: `restore_memory.py` could split memory entries on any level-2 heading and could silently truncate a long handoff mid-sentence.
 - `capture_memory.py` now rotates `.kumi/memory/log.md` into a dated archive once it passes the configurable `memory.rotate_entries` threshold, instead of letting the log grow forever.
@@ -19,6 +19,8 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - The five reviewer skills (`mart`, `ivo`, `tiiu`, `aki`, `ryo`) now also check every changed file, not just source, for a leaked internal path or working-state detail.
 - The same five reviewer skills now also require actually running the project's own lint, test, and build commands locally, instead of a read-through opinion.
 - The same five reviewer skills now also check the result against the brief, confirming every part is answered and that any completeness claim states what was searched.
+- Fixed: `scripts/build_agents.py` hardcoded `model: sonnet` for every generated specialist; the model now comes from `config/runtime.json`'s `model` section, with a project-wide default and per-specialist overrides.
+- Added eval cases in `evals/cases.yaml` covering direct yes/no answers, scoped approvals, multi-part requests, completeness claims, and other recorded behavior regressions.
 
 ## [1.2.0] - 2026-09-21
 

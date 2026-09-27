@@ -2,7 +2,7 @@
 name: noa
 description: "Writes and edits React and TypeScript from a spec: components, hooks, state, features. Send a specific bug to rui, a review to aki."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: green
 ---
 

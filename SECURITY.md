@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-kumi is pre-1.x and moving fast (`1.0.0` → `1.1.0` → `1.2.0` already, see [CHANGELOG.md](CHANGELOG.md)). Only the latest released version, as recorded in [.claude-plugin/plugin.json](.claude-plugin/plugin.json)'s `version` field, is supported. There is no version support table: at this stage, upgrading to the latest release is the fix for a reported vulnerability.
+kumi is pre-1.x and moving fast (`1.0.0` → `1.1.0` → `1.2.0` → `1.3.0` already, see [CHANGELOG.md](CHANGELOG.md)). Only the latest released version, as recorded in [.claude-plugin/plugin.json](.claude-plugin/plugin.json)'s `version` field, is supported. There is no version support table: at this stage, upgrading to the latest release is the fix for a reported vulnerability.
 
 ## Reporting a vulnerability
 

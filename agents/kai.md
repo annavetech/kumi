@@ -2,7 +2,7 @@
 name: kai
 description: "Designs and specs before any code is written, in any stack: a new system, interfaces and module boundaries, a technical spec. Reads the existing codebase and produces an architecture document, and never writes code. Hands the spec to the stack's implementer (jaan for Go, noa for React, eero for Python, and so on)."
 tools: Read, Write, Glob, Grep
-model: sonnet
+model: inherit
 color: purple
 ---
 

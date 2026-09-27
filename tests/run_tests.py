@@ -253,6 +253,15 @@ def test_reviewer_skills_share_identical_checklist_items():
         ok(name) if len(distinct) == 1 else bad(name, f"wording differs: {lines}")
 
 
+def coverage_free_env():
+    """Env for subprocesses that run a tmp copy of build_agents.py, deleted before the
+    test ends. Coverage data pointing at a deleted file breaks "coverage report"."""
+    env = dict(os.environ)
+    env.pop("COVERAGE_PROCESS_START", None)
+    env.pop("COVERAGE_PROCESS_CONFIG", None)
+    return env
+
+
 def test_build_agents_check_catches_house_rules_drift():
     tmp_root = tempfile.mkdtemp()
     try:
@@ -261,14 +270,9 @@ def test_build_agents_check_catches_house_rules_drift():
         drifted = os.path.join(tmp_root, "config", "house_rules.md")
         with open(drifted, "a", encoding="utf-8") as f:
             f.write("- A brand-new rule not yet baked into agents/.\n")
-        # Untraced: this script is a tmp copy deleted below, so coverage data
-        # pointing at it would break "coverage report" after the temp dir is gone.
-        env = dict(os.environ)
-        env.pop("COVERAGE_PROCESS_START", None)
-        env.pop("COVERAGE_PROCESS_CONFIG", None)
         r = subprocess.run(
             [sys.executable, os.path.join(tmp_root, "scripts", "build_agents.py"), "--check"],
-            capture_output=True, text=True, env=env,
+            capture_output=True, text=True, env=coverage_free_env(),
         )
         name = "build_agents.py --check catches house_rules.md drift"
         if r.returncode == 1 and "out of date" in r.stdout:
@@ -277,6 +281,231 @@ def test_build_agents_check_catches_house_rules_drift():
             bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}")
     finally:
         shutil.rmtree(tmp_root, ignore_errors=True)
+
+
+def copy_build_inputs(tmp_root, model_value):
+    """Copy the build inputs into tmp_root with runtime.json's "model" set to model_value."""
+    for sub in ("scripts", "skills", "agents", "config"):
+        shutil.copytree(os.path.join(ROOT, sub), os.path.join(tmp_root, sub))
+    runtime_path = os.path.join(tmp_root, "config", "runtime.json")
+    with open(runtime_path, encoding="utf-8") as f:
+        runtime = json.load(f)
+    runtime["model"] = model_value
+    with open(runtime_path, "w", encoding="utf-8") as f:
+        json.dump(runtime, f)
+
+
+def read_agent_models(agents_dir):
+    """Return {agent filename: its frontmatter model value}, None where the line is unusable."""
+    models = {}
+    for fname in sorted(os.listdir(agents_dir)):
+        with open(os.path.join(agents_dir, fname), encoding="utf-8") as f:
+            found = re.search(r"^model: (.+)$", f.read(), re.MULTILINE)
+        models[fname] = found.group(1) if found else None
+    return models
+
+
+def strict_plugin_validation(agents_dir):
+    """Strict-validate a generated tree. Returns None when the claude CLI is not installed."""
+    if shutil.which("claude") is None:
+        return None
+    r = subprocess.run(
+        ["claude", "plugin", "validate", agents_dir, "--strict"],
+        capture_output=True, text=True,
+    )
+    return r.returncode == 0
+
+
+def run_build_with_model_config(model_value):
+    """Generate agents from a copy of the build inputs with runtime.json's "model" set to
+    model_value. Returns (CompletedProcess, {agent filename: its frontmatter model value})."""
+    tmp_root = tempfile.mkdtemp()
+    try:
+        copy_build_inputs(tmp_root, model_value)
+        r = subprocess.run(
+            [sys.executable, os.path.join(tmp_root, "scripts", "build_agents.py")],
+            capture_output=True, text=True, env=coverage_free_env(),
+        )
+        return r, read_agent_models(os.path.join(tmp_root, "agents"))
+    finally:
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+
+def test_build_agents_uses_configured_model():
+    r, models = run_build_with_model_config({"default": "opus", "overrides": {}})
+    name = "build_agents.py reads the configured default model into every agent's frontmatter"
+    wrong = {f: m for f, m in models.items() if m != "opus"}
+    if r.returncode == 0 and models and not wrong:
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} wrong={wrong} stderr={r.stderr}")
+
+
+def test_build_agents_applies_per_specialist_model_override():
+    r, models = run_build_with_model_config({"default": "opus", "overrides": {"eero": "haiku"}})
+    name = "build_agents.py applies a per-specialist model override, rest stay on the default"
+    others = {f: m for f, m in models.items() if f != "eero.md"}
+    wrong = {f: m for f, m in others.items() if m != "opus"}
+    if r.returncode == 0 and models.get("eero.md") == "haiku" and others and not wrong:
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} eero={models.get('eero.md')!r} wrong={wrong} {r.stderr}")
+
+
+def test_build_agents_survives_wrong_shaped_model_value():
+    # A string where an object belongs is valid JSON, so it must fall back, not crash.
+    r, models = run_build_with_model_config("sonnet")
+    name = "build_agents.py falls back to the default when \"model\" is not an object"
+    wrong = {f: m for f, m in models.items() if m != "inherit"}
+    if r.returncode == 0 and models and not wrong:
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} wrong={wrong} stderr={r.stderr}")
+
+
+def test_build_agents_rejects_unusable_model_names():
+    # Each of these is valid JSON but cannot make a valid frontmatter line, so the
+    # bad entry alone is dropped and a usable model name is written instead.
+    cases = [
+        ("an override that is a number", {"default": "opus", "overrides": {"eero": 123}}, "opus"),
+        ("an override that is null", {"default": "opus", "overrides": {"eero": None}}, "opus"),
+        (
+            "an override that is an object",
+            {"default": "opus", "overrides": {"eero": {"name": "haiku"}}},
+            "opus",
+        ),
+        ("an empty default", {"default": "", "overrides": {}}, "inherit"),
+        (
+            "a default carrying a newline",
+            {"default": "opus\nevil: true", "overrides": {}},
+            "inherit",
+        ),
+        (
+            "an override carrying a newline",
+            {"default": "opus", "overrides": {"eero": "haiku\nevil: true"}},
+            "opus",
+        ),
+        ("a default with an unmatched quote", {"default": "\"opus", "overrides": {}}, "inherit"),
+        (
+            "a default with a colon followed by a space",
+            {"default": "opus: evil", "overrides": {}},
+            "inherit",
+        ),
+        ("a default padded with spaces", {"default": " opus ", "overrides": {}}, "inherit"),
+        (
+            "an override with an unmatched quote",
+            {"default": "opus", "overrides": {"eero": "\"haiku"}},
+            "opus",
+        ),
+        ("a default that is the YAML bareword null", {"default": "null", "overrides": {}},
+         "inherit"),
+        ("a default that is the YAML bareword TRUE", {"default": "TRUE", "overrides": {}},
+         "inherit"),
+        (
+            "an override that is the YAML bareword off",
+            {"default": "opus", "overrides": {"eero": "off"}},
+            "opus",
+        ),
+    ]
+    for label, model_value, expect in cases:
+        r, models = run_build_with_model_config(model_value)
+        name = f"build_agents.py writes a valid model line despite {label}"
+        wrong = {f: m for f, m in models.items() if m != expect}
+        if r.returncode == 0 and models and not wrong:
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} wrong={wrong} stderr={r.stderr}")
+
+
+def test_build_agents_warns_about_ignored_model_config():
+    r, models = run_build_with_model_config({"default": "", "overrides": {"eero": 123}})
+    name = "build_agents.py names the ignored model config on stderr and still exits 0"
+    stderr = r.stderr
+    named = "model.default" in stderr and "model.overrides.eero" in stderr
+    if r.returncode == 0 and "warning" in stderr and named and models.get("eero.md") == "inherit":
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} stderr={stderr!r} eero={models.get('eero.md')!r}")
+
+
+BEDROCK_ARN = (
+    "arn:aws:bedrock:us-east-1:123456789012:inference-profile/"
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0"
+)
+
+
+def test_build_agents_accepts_real_platform_model_ids():
+    # Bedrock and Vertex ids carry colons, at signs and slashes, and must survive untouched.
+    ids = [
+        "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+        "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "publishers/anthropic/models/claude-3-5-sonnet",
+        "claude-3-5-sonnet@20240620",
+        "sonnet[1m]",
+        BEDROCK_ARN,
+    ]
+    for model_id in ids:
+        r, models = run_build_with_model_config({"default": model_id, "overrides": {}})
+        name = f"build_agents.py keeps the platform model id {model_id[:40]}"
+        wrong = {f: m for f, m in models.items() if m != model_id}
+        if r.returncode == 0 and models and not wrong and "warning" not in r.stderr:
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} wrong={wrong} stderr={r.stderr!r}")
+
+
+def test_build_agents_rejects_a_name_ending_in_a_colon():
+    # A trailing colon turns the value into a nested key, which strict validation rejects.
+    cases = [
+        ("a default ending in a colon", {"default": "opus:", "overrides": {}}, "inherit",
+         "model.default"),
+        ("an override ending in a colon", {"default": "opus", "overrides": {"eero": "a:b:c:"}},
+         "opus", "model.overrides.eero"),
+    ]
+    for label, model_value, expect, named_key in cases:
+        tmp_root = tempfile.mkdtemp()
+        try:
+            copy_build_inputs(tmp_root, model_value)
+            r = subprocess.run(
+                [sys.executable, os.path.join(tmp_root, "scripts", "build_agents.py")],
+                capture_output=True, text=True, env=coverage_free_env(),
+            )
+            agents_dir = os.path.join(tmp_root, "agents")
+            models = read_agent_models(agents_dir)
+            valid = strict_plugin_validation(agents_dir)
+        finally:
+            shutil.rmtree(tmp_root, ignore_errors=True)
+        name = f"build_agents.py falls back and warns for {label}"
+        if valid is None:
+            name += ", plugin validation skipped (no claude CLI)"
+        wrong = {f: m for f, m in models.items() if m != expect}
+        warned = "warning" in r.stderr and named_key in r.stderr
+        if r.returncode == 0 and models and not wrong and warned and valid is not False:
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} wrong={wrong} valid={valid} stderr={r.stderr!r}")
+
+
+def test_build_agents_warns_about_unknown_override_specialist():
+    # A typo in a specialist name can never take effect, so it has to be named, not swallowed.
+    r, models = run_build_with_model_config({"default": "opus", "overrides": {"eerro": "haiku"}})
+    name = "build_agents.py names an override key that is not a generated specialist"
+    wrong = {f: m for f, m in models.items() if m != "opus"}
+    named = "model.overrides.eerro" in r.stderr
+    if r.returncode == 0 and "warning" in r.stderr and named and models and not wrong:
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} wrong={wrong} stderr={r.stderr!r}")
+
+
+def test_build_agents_survives_wrong_shaped_overrides_value():
+    r, models = run_build_with_model_config({"default": "opus", "overrides": ["eero"]})
+    name = "build_agents.py ignores a wrong-shaped \"overrides\" and keeps the configured default"
+    wrong = {f: m for f, m in models.items() if m != "opus"}
+    if r.returncode == 0 and models and not wrong:
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} wrong={wrong} stderr={r.stderr}")
 
 
 def test_shift_headings_skips_fenced_code_blocks():
@@ -2036,19 +2265,58 @@ def test_inject_specialist_context_emits_updated_input():
         try:
             out = json.loads(r.stdout)
             updated_prompt = out["hookSpecificOutput"]["updatedInput"]["prompt"]
-            decision = out["hookSpecificOutput"]["permissionDecision"]
+            no_decision = "permissionDecision" not in out["hookSpecificOutput"]
         except Exception as e:
             bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr} err={e}")
             return
         if (
             r.returncode == 0
-            and decision == "allow"
+            and no_decision
             and "Prefer table-driven tests." in updated_prompt
             and "Use type hints everywhere." in updated_prompt
         ):
             ok(name)
         else:
             bad(name, f"stdout={r.stdout!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_inject_specialist_context_never_emits_allow():
+    """No path in this hook may set permissionDecision to "allow"; updatedInput
+    alone must carry the effect, per Claude Code's hooks reference."""
+    project = tempfile.mkdtemp()
+    try:
+        kumi_dir = os.path.join(project, ".kumi")
+        os.makedirs(kumi_dir)
+        overrides = {"all": [{"rule": "Prefer table-driven tests."}]}
+        with open(os.path.join(kumi_dir, "overrides.json"), "w", encoding="utf-8") as f:
+            json.dump(overrides, f)
+        cases = [
+            {
+                "tool_name": "Agent",
+                "tool_input": {"subagent_type": "kumi:eero", "prompt": COMPLETE_BRIEF},
+                "cwd": project,
+            },
+            {
+                "tool_name": "Agent",
+                "tool_input": {"subagent_type": "kumi:eero", "prompt": "Goal: x"},
+                "cwd": project,
+            },
+        ]
+        name = "inject_specialist_context never emits permissionDecision: allow"
+        for payload in cases:
+            r = run_inject_specialist_context(payload)
+            try:
+                out = json.loads(r.stdout)
+                decision = out.get("hookSpecificOutput", {}).get("permissionDecision")
+            except Exception as e:
+                bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr} err={e}")
+                return
+            if decision == "allow":
+                bad(name, f"emitted permissionDecision allow: stdout={r.stdout!r}")
+                return
+        ok(name)
     finally:
         shutil.rmtree(project, ignore_errors=True)
 
@@ -2296,6 +2564,15 @@ def main():
     test_house_rules_present_in_yui_skill()
     test_reviewer_skills_share_identical_checklist_items()
     test_build_agents_check_catches_house_rules_drift()
+    test_build_agents_uses_configured_model()
+    test_build_agents_applies_per_specialist_model_override()
+    test_build_agents_survives_wrong_shaped_model_value()
+    test_build_agents_survives_wrong_shaped_overrides_value()
+    test_build_agents_rejects_unusable_model_names()
+    test_build_agents_warns_about_ignored_model_config()
+    test_build_agents_accepts_real_platform_model_ids()
+    test_build_agents_rejects_a_name_ending_in_a_colon()
+    test_build_agents_warns_about_unknown_override_specialist()
     test_shift_headings_skips_fenced_code_blocks()
     test_yui_skill_does_not_contradict_verify_rule()
     test_chat_ops_workflow_permissions()
@@ -2362,6 +2639,7 @@ def main():
     test_ensure_state_kumi_state_dir_relative_anchors_to_repo_root()
     test_inject_specialist_context_noop_paths()
     test_inject_specialist_context_emits_updated_input()
+    test_inject_specialist_context_never_emits_allow()
     test_inject_specialist_context_brief_complete_passes()
     test_inject_specialist_context_brief_missing_part_denied()
     test_inject_specialist_context_brief_four_empty_labels_denied()

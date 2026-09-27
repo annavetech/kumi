@@ -2,7 +2,7 @@
 name: remo
 description: "Models document and key-value data and its access patterns, for stores like MongoDB, DynamoDB, and Redis. Send relational schema and SQL to saku."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: cyan
 ---
 

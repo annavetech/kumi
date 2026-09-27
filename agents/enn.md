@@ -2,7 +2,7 @@
 name: enn
 description: "Starts, stops, and inspects running processes and dev servers: launching a Go binary or a dev server, killing a process by port or name, checking what holds a port. It manages processes and does not edit code."
 tools: Bash, Read, Glob
-model: sonnet
+model: inherit
 color: yellow
 ---
 

@@ -1,5 +1,5 @@
 {
-  "description": "Runtime layout for the kumi shared-state and observability files. The hooks read these names, so you can rename or relocate any of them here without touching hook code. All paths are relative to state_dir, which defaults to .kumi in the working project. Set the KUMI_STATE_DIR environment variable to move that base directory: an absolute path keeps state in one place across projects, a relative path is taken from the project root.",
+  "description": "Runtime layout for the kumi shared-state and observability files. The hooks read these names, so you can rename or relocate any of them here without touching hook code. All paths are relative to state_dir, which defaults to .kumi in the working project. Set the KUMI_STATE_DIR environment variable to move that base directory: an absolute path keeps state in one place across projects, a relative path is taken from the project root. The model section is read by scripts/build_agents.py, not by the hooks.",
   "state_dir": ".kumi",
   "files": {
     "status": "status.md",
@@ -17,6 +17,10 @@
     "signature": ".last",
     "restore_entries": 3,
     "rotate_entries": 250
+  },
+  "model": {
+    "default": "inherit",
+    "overrides": {}
   },
   "logs": {
     "activity": "activity.log"

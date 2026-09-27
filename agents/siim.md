@@ -2,7 +2,7 @@
 name: siim
 description: "Finds and fixes a specific Go bug: an error, a panic, a test failure, wrong behavior. Finds the root cause first and changes only the broken path. Send new features to jaan, a review to mart."
 tools: Read, Edit, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: orange
 ---
 

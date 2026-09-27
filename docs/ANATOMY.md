@@ -38,7 +38,7 @@ hooks/                 the runtime behaviour
 
 config/
   contract.json        the rules for a valid skill (read by the validator)
-  runtime.json         the names and layout of the .kumi state files
+  runtime.json         the names and layout of the .kumi state files, plus the generator's default and per-specialist model overrides
 
 evals/
   cases.yaml           the routing set: which prompt should reach which specialist

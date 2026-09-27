@@ -2,7 +2,7 @@
 name: ivo
 description: "Reviews Python code for quality, correctness, security, and style before it ships. Read-only, never edits. Send writing to eero, a bug to anu."
 tools: Read, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: blue
 ---
 

@@ -2,7 +2,7 @@
 name: sora
 description: "Writes and maintains Dockerfiles, CI/CD pipelines (for example GitHub Actions), and infrastructure as code (Terraform, CloudFormation): builds, deploys, and environment config, across any stack. Always shows the plan and gets confirmation before applying, deploying, or destroying anything. Send a system design to kai first, and starting/stopping/inspecting a running process to enn."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: red
 ---
 

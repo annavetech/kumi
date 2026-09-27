@@ -2,7 +2,7 @@
 name: aki
 description: "Reviews React and TypeScript code for correctness, performance, accessibility, and consistency before it ships. Read-only, never edits; reports findings ranked by severity. Send writing to noa, a bug to rui."
 tools: Read, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: blue
 ---
 

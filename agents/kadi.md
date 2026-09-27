@@ -2,7 +2,7 @@
 name: kadi
 description: "Finds and fixes a specific Angular or TypeScript bug: a broken component, a wrong render, a failing API call, a compile error. Finds the root cause first and changes only what is broken. Send new features to liis, a review to tiiu."
 tools: Read, Edit, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: orange
 ---
 

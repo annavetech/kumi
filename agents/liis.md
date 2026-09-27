@@ -2,7 +2,7 @@
 name: liis
 description: "Writes and edits Angular and TypeScript features from a spec: components, routes, services, templates, signals. Send a specific bug to kadi, a review to tiiu."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: green
 ---
 

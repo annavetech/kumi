@@ -2,7 +2,7 @@
 name: shu
 description: "Finds and fixes a specific Swift or iOS bug: a crash, wrong behavior, a rendering problem. Finds the root cause first and changes only what is broken. Send new features to ren, a review to ryo."
 tools: Read, Edit, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: orange
 ---
 
