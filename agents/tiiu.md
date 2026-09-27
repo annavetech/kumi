@@ -2,7 +2,7 @@
 name: tiiu
 description: "Reviews Angular and TypeScript code for correctness, performance, accessibility, and style before it ships. Read-only, never edits. Good after liis or kadi. Send writing to liis, a bug to kadi."
 tools: Read, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: blue
 ---
 

@@ -61,6 +61,8 @@ Disabling, uninstalling, or reinstalling kumi this way never touches a project's
 
 Changing behaviour never requires touching another specialist. If a change makes two specialists overlap, the fix is a routing rule in `yui`, not a change to the other specialist.
 
+To set a specialist's model, add its name under `model.overrides` in `config/runtime.json`, then run `scripts/build_agents.py`.
+
 ## Remove a specialist permanently
 
 1. Delete its folder `skills/<name>/`.

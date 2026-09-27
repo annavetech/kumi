@@ -2,7 +2,7 @@
 name: ryo
 description: "Reviews Swift and iOS code for quality, memory safety, and Human Interface Guidelines compliance before an App Store submission. Read-only, never edits. Good after ren or shu. Send writing to ren, a bug to shu."
 tools: Read, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: blue
 ---
 

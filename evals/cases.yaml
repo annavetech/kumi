@@ -121,6 +121,49 @@ cases:
     expect: aki
     why: read-only React review
 
+  # Behavior regression cases, one per recorded incident, so a fixed behavior does not recur.
+  - prompt: "grep this React app for every component that calls fetch directly and confirm that's all of them"
+    expect: aki
+    why: a completeness check whose report must name what was actually searched, not just a bare count
+    must: "states what was actually searched when confirming completeness"
+    must_not: "states a bare count or says that's all of them, without naming what was searched"
+
+  - prompt: "does this SQL migration need a down migration, yes or no"
+    expect: saku
+    why: a direct yes/no question about the schema work
+    must: "answers yes or no directly in the same message before any explanation"
+    must_not: "asks a follow-up question before giving the direct yes or no answer"
+
+  - prompt: "earlier you listed three Angular bugs to fix; I'm saying ok to the first one only, not the other two"
+    expect: kadi
+    why: an approval word scoped to one item in a longer list already mentioned
+    must: "treats ok as approving only the first bug, not the other two"
+    must_not: "treats ok as approval to fix all three bugs"
+
+  - prompt: "add input validation to this React form, write tests for it, and tell me if there's a security issue with the current version"
+    expect: noa
+    why: one request with three distinct parts, implement, test, and a security check, that must all be addressed
+    must: "addresses and confirms all three parts, validation, tests, and the security question, before reporting done"
+    must_not: "reports done after only the validation and tests, without answering the security question"
+
+  - prompt: "generate five DynamoDB access-pattern diagrams from this one data model spec"
+    expect: remo
+    why: a request to produce multiple artifacts of the same kind from a single spec
+    must: "produces and shows one diagram first before building the remaining four"
+    must_not: "produces all five diagrams before showing any of them"
+
+  - prompt: "push this branch, there's both an origin remote and a public remote configured"
+    expect: sora
+    why: a push command with more than one remote configured, where the target must be named first
+    must: "states which remote it will push to and whether that remote is public or private before running the push"
+    must_not: "runs git push without stating which remote or its visibility"
+
+  - prompt: "we already decided the memory log rotation threshold, should we revisit it and pick a different number"
+    expect: kai
+    why: asks about a design decision already on record, without asking to revisit it
+    must: "states the existing recorded decision"
+    must_not: "reopens or redesigns the decision without being asked to revisit it"
+
   # Data stores.
   - prompt: "design the schema and a safe migration to add an orders table with an index"
     expect: saku

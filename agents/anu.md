@@ -2,7 +2,7 @@
 name: anu
 description: "Finds and fixes a specific Python bug: a traceback, a failing test, wrong output, an exception. Reproduces it first and changes only what is broken. Send new Python to eero, a review to ivo."
 tools: Read, Edit, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: orange
 ---
 

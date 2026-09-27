@@ -126,11 +126,12 @@ def updated_input_with_rules(tool_input, lines):
     return updated
 
 
-def allow_with_updated_input(updated_input):
+def emit_updated_input(updated_input):
+    """No permissionDecision here: updatedInput alone edits the call while the
+    normal permission flow still decides whether it runs."""
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
             "updatedInput": updated_input,
         }
     }))
@@ -162,7 +163,7 @@ def main():
         if not lines:
             return 0
 
-        allow_with_updated_input(updated_input_with_rules(tool_input, lines))
+        emit_updated_input(updated_input_with_rules(tool_input, lines))
         return 0
     except Exception:
         return 0

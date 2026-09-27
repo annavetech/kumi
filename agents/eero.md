@@ -2,7 +2,7 @@
 name: eero
 description: "Writes and edits Python code from a spec: features, modules, functionality. Send a specific bug to anu, a review to ivo."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: green
 ---
 

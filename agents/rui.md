@@ -2,7 +2,7 @@
 name: rui
 description: "Finds and fixes a specific React bug: a render error, broken state, a stale closure, a bad effect, wrong UI behavior. Reproduces it first and changes only what is broken. Send new React to noa, a review to aki."
 tools: Read, Edit, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: orange
 ---
 

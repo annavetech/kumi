@@ -2,7 +2,7 @@
 name: mart
 description: "Reviews Go code for quality, security, and architecture before it merges. Read-only, never edits; reports findings ranked by severity. Good after jaan or siim, or on any Go about to ship. Send writing to jaan, a bug to siim."
 tools: Read, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: blue
 ---
 

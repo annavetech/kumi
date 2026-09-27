@@ -2,6 +2,7 @@
 """Generate subagent definitions from the skills.
 Derives agents/<name>.md from skills/<name>/SKILL.md, the source of truth, so they never drift."""
 
+import json
 import os
 import re
 import sys
@@ -11,11 +12,91 @@ ROOT = os.path.dirname(HERE)
 SKILLS_DIR = os.path.join(ROOT, "skills")
 AGENTS_DIR = os.path.join(ROOT, "agents")
 HOUSE_RULES_PATH = os.path.join(ROOT, "config", "house_rules.md")
+RUNTIME_CONFIG_PATH = os.path.join(ROOT, "config", "runtime.json")
 
 # Roles that must not become subagents (a subagent cannot dispatch subagents).
 EXCLUDE = {"yui"}
 
-MODEL = "sonnet"
+DEFAULT_MODEL = "inherit"
+
+
+# Matches a model name safe to write unquoted into YAML frontmatter (covers Bedrock/Vertex ids),
+# and rejects whitespace or a trailing colon, either of which would break the line.
+MODEL_NAME_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._\[\]:@/-]*[A-Za-z0-9\]])?")
+
+# YAML reserved barewords: unquoted, these parse as null or a boolean instead of a string.
+YAML_RESERVED_WORDS = {"null", "true", "false", "yes", "no", "on", "off", "~"}
+
+
+def usable_model_name(value):
+    """True when value is a string that can be written into YAML frontmatter as-is."""
+    if not isinstance(value, str) or MODEL_NAME_RE.fullmatch(value) is None:
+        return False
+    return value.lower() not in YAML_RESERVED_WORDS
+
+
+def generated_specialist_names():
+    """The names generation writes an agent for, or None when the skills tree cannot be read."""
+    try:
+        names = os.listdir(SKILLS_DIR)
+    except OSError:
+        return None
+    return {
+        name for name in names
+        if name not in EXCLUDE and os.path.isfile(os.path.join(SKILLS_DIR, name, "SKILL.md"))
+    }
+
+
+def load_model_config():
+    """Return (default_model, overrides) from config/runtime.json's "model" section.
+    Malformed entries are dropped and named on stderr; the exit code stays 0."""
+    ignored = []
+    try:
+        with open(RUNTIME_CONFIG_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError:
+        data = {}
+    except json.JSONDecodeError:
+        data = {}
+        ignored.append("the file (not valid JSON)")
+
+    if not isinstance(data, dict):
+        ignored.append("the file (root is not an object)")
+        data = {}
+    model = data.get("model", {})
+    if not isinstance(model, dict):
+        ignored.append("model (not an object)")
+        model = {}
+
+    default = DEFAULT_MODEL
+    if "default" in model:
+        if usable_model_name(model["default"]):
+            default = model["default"]
+        else:
+            ignored.append("model.default")
+
+    overrides = {}
+    raw_overrides = model.get("overrides", {})
+    known = generated_specialist_names()
+    if isinstance(raw_overrides, dict):
+        for name, value in raw_overrides.items():
+            if not usable_model_name(value):
+                ignored.append(f"model.overrides.{name}")
+            elif known is not None and name not in known:
+                ignored.append(f"model.overrides.{name} (not a generated specialist)")
+            else:
+                overrides[name] = value
+    else:
+        ignored.append("model.overrides (not an object)")
+
+    if ignored:
+        print(
+            f"warning: {os.path.relpath(RUNTIME_CONFIG_PATH, ROOT)}: "
+            f"ignored {', '.join(ignored)}",
+            file=sys.stderr,
+        )
+    return default, overrides
+
 
 # Tool set and color per role kind. Reviewers are read-only by construction.
 ROLE_TOOLS = {
@@ -110,18 +191,18 @@ def load_house_rules():
         return shift_headings(f.read().rstrip() + "\n")
 
 
-def agent_text(name, description, kind, body, house_rules):
+def agent_text(name, description, kind, body, house_rules, model):
     note = GENERATED_NOTE.format(name=name)
     tools = ", ".join(ROLE_TOOLS[kind])
     color = ROLE_COLOR[kind]
     return (
         f"---\nname: {name}\ndescription: {description}\n"
-        f"tools: {tools}\nmodel: {MODEL}\ncolor: {color}\n---\n\n{note}\n\n{body}"
+        f"tools: {tools}\nmodel: {model}\ncolor: {color}\n---\n\n{note}\n\n{body}"
         f"\n{house_rules}"
     )
 
 
-def build_one(name):
+def build_one(name, default_model, model_overrides):
     """Return (filename, content) for a skill, or None to skip it."""
     if name in EXCLUDE:
         return None
@@ -137,7 +218,9 @@ def build_one(name):
         return None
     kind = role_kind(field(fm, "role"))
     house_rules = load_house_rules()
-    return f"{name}.md", agent_text(name, description, kind, body.rstrip() + "\n", house_rules)
+    model = model_overrides.get(name, default_model)
+    content = agent_text(name, description, kind, body.rstrip() + "\n", house_rules, model)
+    return f"{name}.md", content
 
 
 def main():
@@ -149,10 +232,11 @@ def main():
     if not check:
         os.makedirs(AGENTS_DIR, exist_ok=True)
 
+    default_model, model_overrides = load_model_config()
     stale = []
     written = 0
     for name in sorted(os.listdir(SKILLS_DIR)):
-        result = build_one(name)
+        result = build_one(name, default_model, model_overrides)
         if result is None:
             continue
         fname, content = result

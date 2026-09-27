@@ -2,7 +2,7 @@
 name: jaan
 description: "Writes and edits Go code from a spec: features, endpoints, new packages, functionality. Send a specific bug to siim, a review to mart, a design to kai."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: green
 ---
 

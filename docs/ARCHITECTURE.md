@@ -48,7 +48,7 @@ Three artifacts make adding a specialist mechanical and safe:
 
 ## Skills and subagents
 
-Each specialist ships two ways. As a skill it runs inside the session you invoke it from. As a subagent (under `agents/`) it runs in its own context, which is what lets its actions and its token and time usage be measured on their own. The skill is the source of truth; `scripts/build_agents.py` generates the subagent from it, so the two never drift, and `scripts/build_agents.py --check` fails if they do. The generator also gives each subagent a tool set, a model, and a color from its role, so a reviewer subagent is read-only by construction and cannot edit, while an implementer gets edit and shell tools. The coordinator is the one specialist with no subagent form, because a subagent cannot dispatch other subagents.
+Each specialist ships two ways. As a skill it runs inside the session you invoke it from. As a subagent (under `agents/`) it runs in its own context, which is what lets its actions and its token and time usage be measured on their own. The skill is the source of truth; `scripts/build_agents.py` generates the subagent from it, so the two never drift, and `scripts/build_agents.py --check` fails if they do. The generator also gives each subagent a tool set and a color from its role, so a reviewer subagent is read-only by construction and cannot edit, while an implementer gets edit and shell tools. The model comes from `config/runtime.json` instead: a project-wide default plus optional per-specialist overrides. The coordinator is the one specialist with no subagent form, because a subagent cannot dispatch other subagents.
 
 ## Memory and observability
 

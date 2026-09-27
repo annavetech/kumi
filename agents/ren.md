@@ -2,7 +2,7 @@
 name: ren
 description: "Writes and edits Swift and iOS features with SwiftUI from a spec: screens, views, data models, following Apple's Human Interface Guidelines. Send a specific bug to shu, a review to ryo."
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: sonnet
+model: inherit
 color: green
 ---
 
