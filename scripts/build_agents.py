@@ -10,6 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SKILLS_DIR = os.path.join(ROOT, "skills")
 AGENTS_DIR = os.path.join(ROOT, "agents")
+HOUSE_RULES_PATH = os.path.join(ROOT, "config", "house_rules.md")
 
 # Roles that must not become subagents (a subagent cannot dispatch subagents).
 EXCLUDE = {"yui"}
@@ -77,13 +78,46 @@ def role_kind(role):
     return "implementer"
 
 
-def agent_text(name, description, kind, body):
+HEADING_RE = re.compile(r"^(#+)(\s)")
+FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
+
+
+def shift_headings(text, by=1):
+    """Lower every markdown heading in text by `by` levels, so it nests under a parent doc.
+    Lines inside a fenced code block (``` or ~~~, any fence length) are left untouched."""
+    lines = text.split("\n")
+    out = []
+    fence_char, fence_len = None, 0
+    for line in lines:
+        m = FENCE_RE.match(line.lstrip())
+        if m:
+            marker = m.group(1)
+            if fence_char is None:
+                fence_char, fence_len = marker[0], len(marker)
+            elif marker[0] == fence_char and len(marker) >= fence_len:
+                fence_char, fence_len = None, 0
+            out.append(line)
+            continue
+        if fence_char is None:
+            line = HEADING_RE.sub(lambda mm: ("#" * (len(mm.group(1)) + by)) + mm.group(2), line)
+        out.append(line)
+    return "\n".join(out)
+
+
+def load_house_rules():
+    """Read kumi's own shared house rules, shifted one heading level to nest in a host doc."""
+    with open(HOUSE_RULES_PATH, encoding="utf-8") as f:
+        return shift_headings(f.read().rstrip() + "\n")
+
+
+def agent_text(name, description, kind, body, house_rules):
     note = GENERATED_NOTE.format(name=name)
     tools = ", ".join(ROLE_TOOLS[kind])
     color = ROLE_COLOR[kind]
     return (
         f"---\nname: {name}\ndescription: {description}\n"
         f"tools: {tools}\nmodel: {MODEL}\ncolor: {color}\n---\n\n{note}\n\n{body}"
+        f"\n{house_rules}"
     )
 
 
@@ -102,7 +136,8 @@ def build_one(name):
     if not description:
         return None
     kind = role_kind(field(fm, "role"))
-    return f"{name}.md", agent_text(name, description, kind, body.rstrip() + "\n")
+    house_rules = load_house_rules()
+    return f"{name}.md", agent_text(name, description, kind, body.rstrip() + "\n", house_rules)
 
 
 def main():

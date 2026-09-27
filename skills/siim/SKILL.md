@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Reproduce the failure**: run the failing test or command; confirm you can see the bug
 2. **Find the root cause**: trace from the symptom to the actual source; read only the broken code path
-3. **State it**: the root cause in one sentence, and exactly which file(s) and line(s) you will change; wait for a go-ahead
+3. **State it**: the root cause in one sentence, and exactly which file(s) and line(s) you will change; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Make the fix**: the minimal change that addresses the root cause
 5. **Do not touch anything else**: no refactoring, no cleanup, nothing outside the broken path
 6. **Verify**: reproduce again to confirm the bug is gone; run `go vet ./...`; confirm existing tests pass
@@ -42,7 +42,7 @@ Reproduce the failure
 Trace symptom -> root cause
         |
         v
-State cause + exact file(s)/line(s) --> go-ahead
+State cause + exact file(s)/line(s)
         |
         v
 Minimal fix, nothing else touched

@@ -31,7 +31,7 @@ import chat_commands  # noqa: E402
 import restore_memory  # noqa: E402
 import strip_stale_approval  # noqa: E402
 from _github import report_if_error  # noqa: E402
-from build_agents import role_kind  # noqa: E402
+from build_agents import HOUSE_RULES_PATH, role_kind, shift_headings  # noqa: E402
 from merge_gate import MAX_DESCRIPTION_LENGTH, decide_state  # noqa: E402
 from validate_skills import CONTRACT, check_skill, load_contract  # noqa: E402
 
@@ -182,6 +182,113 @@ def test_role_kind_devops_before_ops():
             ok(f"role_kind({role!r}) == {expect!r}")
         else:
             bad(f"role_kind({role!r}) == {expect!r}", f"got {got!r}")
+
+
+def test_house_rules_present_in_every_generated_agent():
+    # The build shifts headings one level to nest under the host doc; compare the shifted form.
+    with open(HOUSE_RULES_PATH, encoding="utf-8") as f:
+        rules_text = shift_headings(f.read().rstrip() + "\n")
+    heading_line = rules_text.splitlines()[0]
+    agents_dir = os.path.join(ROOT, "agents")
+    missing = []
+    wrong_heading = []
+    for fname in sorted(os.listdir(agents_dir)):
+        with open(os.path.join(agents_dir, fname), encoding="utf-8") as f:
+            content = f.read()
+        if rules_text not in content:
+            missing.append(fname)
+        elif heading_line not in content.splitlines():
+            wrong_heading.append(fname)
+    name = "config/house_rules.md text appears verbatim in every generated agent"
+    if not missing and not wrong_heading:
+        ok(name)
+    else:
+        bad(name, f"missing from: {missing}; wrong heading level in: {wrong_heading}")
+
+
+def test_house_rules_present_in_yui_skill():
+    # yui is hand-maintained, not generated, but nests the rules the same shifted way.
+    with open(HOUSE_RULES_PATH, encoding="utf-8") as f:
+        rules_text = shift_headings(f.read().rstrip() + "\n")
+    heading_line = rules_text.splitlines()[0]
+    with open(os.path.join(ROOT, "skills", "yui", "SKILL.md"), encoding="utf-8") as f:
+        body = f.read()
+    name = "config/house_rules.md text appears verbatim in skills/yui/SKILL.md"
+    if rules_text not in body:
+        bad(name, "house rules text not found in yui's SKILL.md body")
+    elif heading_line not in body.splitlines():
+        bad(name, f"heading line {heading_line!r} not present as a whole line (level drift)")
+    else:
+        ok(name)
+
+
+def test_build_agents_check_catches_house_rules_drift():
+    tmp_root = tempfile.mkdtemp()
+    try:
+        for sub in ("scripts", "skills", "agents", "config"):
+            shutil.copytree(os.path.join(ROOT, sub), os.path.join(tmp_root, sub))
+        drifted = os.path.join(tmp_root, "config", "house_rules.md")
+        with open(drifted, "a", encoding="utf-8") as f:
+            f.write("- A brand-new rule not yet baked into agents/.\n")
+        r = subprocess.run(
+            [sys.executable, os.path.join(tmp_root, "scripts", "build_agents.py"), "--check"],
+            capture_output=True, text=True,
+        )
+        name = "build_agents.py --check catches house_rules.md drift"
+        if r.returncode == 1 and "out of date" in r.stdout:
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}")
+    finally:
+        shutil.rmtree(tmp_root, ignore_errors=True)
+
+
+def test_shift_headings_skips_fenced_code_blocks():
+    fixture = (
+        "# Title\n"
+        "\n"
+        "Some rule text.\n"
+        "\n"
+        "```\n"
+        "# not a heading, a shell comment\n"
+        "```\n"
+        "\n"
+        "~~~~\n"
+        "## also not a heading\n"
+        "~~~~\n"
+        "\n"
+        "## Real subheading\n"
+    )
+    lines = shift_headings(fixture, by=1).split("\n")
+    name = "shift_headings shifts real headings but leaves fenced-block lines untouched"
+    # (line index, exact expected line) -- whole-line equality, not substring containment,
+    # so a wrong extra "#" cannot hide inside a longer matched string.
+    expected = {
+        0: "## Title",
+        5: "# not a heading, a shell comment",
+        9: "## also not a heading",
+        12: "### Real subheading",
+    }
+    mismatches = {i: lines[i] for i, exp in expected.items() if lines[i] != exp}
+    if not mismatches:
+        ok(name)
+    else:
+        bad(name, f"expected={expected} got={mismatches}")
+
+
+def test_yui_skill_does_not_contradict_verify_rule():
+    with open(os.path.join(ROOT, "skills", "yui", "SKILL.md"), encoding="utf-8") as f:
+        body = f.read()
+    replacement = "never redo or second-guess the specialist's own domain judgment"
+    name = "yui's SKILL.md drops 'do not verify' and states the narrowed rule instead"
+    if "do not verify" not in body.lower() and replacement in body:
+        ok(name)
+    else:
+        bad(
+            name,
+            f"contains 'do not verify': {'do not verify' in body.lower()}; "
+            f"contains narrowed replacement: {replacement in body}",
+        )
 
 
 def test_chat_ops_workflow_permissions():
@@ -1653,6 +1760,179 @@ def test_ensure_state_git_as_file_skips_exclude():
         shutil.rmtree(project, ignore_errors=True)
 
 
+def test_ensure_state_anchors_to_repo_root_from_subdirectory():
+    project = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(project, ".git"))
+        deep = os.path.join(project, "decisions", "mart", "sub")
+        os.makedirs(deep)
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": deep,
+        }
+        r = run_ensure_state(payload)
+
+        root_kumi = os.path.join(project, ".kumi")
+        deep_kumi = os.path.join(deep, ".kumi")
+        exclude_path = os.path.join(project, ".git", "info", "exclude")
+        exclude_has_entry = False
+        if os.path.isfile(exclude_path):
+            with open(exclude_path, encoding="utf-8") as f:
+                exclude_has_entry = ".kumi/" in f.read().splitlines()
+
+        msg = "state anchors to the repo root, not a subdirectory kumi was invoked from"
+        if (
+            r.returncode == 0
+            and os.path.isdir(root_kumi)
+            and not os.path.isdir(deep_kumi)
+            and exclude_has_entry
+        ):
+            ok(msg)
+        else:
+            bad(
+                msg,
+                f"rc={r.returncode} root_kumi={os.path.isdir(root_kumi)} "
+                f"deep_kumi={os.path.isdir(deep_kumi)} exclude={exclude_has_entry}",
+            )
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_ensure_state_reuses_existing_ancestor_kumi():
+    project = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(project, ".git"))
+        os.makedirs(os.path.join(project, ".kumi"))
+        nested_cwd = os.path.join(project, ".kumi", "decisions", "mart")
+        os.makedirs(nested_cwd)
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": nested_cwd,
+        }
+        r = run_ensure_state(payload)
+
+        nested_kumi = os.path.join(nested_cwd, ".kumi")
+        msg = "reuses an existing ancestor .kumi instead of nesting a new one"
+        if r.returncode == 0 and not os.path.isdir(nested_kumi):
+            ok(msg)
+        else:
+            bad(msg, f"rc={r.returncode} nested_kumi_exists={os.path.isdir(nested_kumi)}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_ensure_state_resolves_symlinked_ancestor():
+    # outside/.kumi is an unrelated project's state dir. Reached via a raw (unresolved)
+    # path, walking above the symlink lands in outside's own ancestry and picks it up
+    # by mistake; realpath must resolve the symlink first so the walk stays inside real_project.
+    real_project = tempfile.mkdtemp()
+    outside = tempfile.mkdtemp()
+    link = os.path.join(outside, "link")
+    try:
+        os.makedirs(os.path.join(real_project, ".git"))
+        os.makedirs(os.path.join(real_project, "sub"))
+        os.makedirs(os.path.join(outside, ".kumi"))
+        os.symlink(real_project, link)
+        cwd = os.path.join(link, "sub")
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": cwd,
+        }
+        r = run_ensure_state(payload)
+
+        root_kumi = os.path.join(real_project, ".kumi")
+        exclude_path = os.path.join(real_project, ".git", "info", "exclude")
+        exclude_has_entry = False
+        if os.path.isfile(exclude_path):
+            with open(exclude_path, encoding="utf-8") as f:
+                exclude_has_entry = ".kumi/" in f.read().splitlines()
+
+        msg = "resolves a symlinked ancestor instead of reusing an unrelated project's .kumi"
+        if r.returncode == 0 and os.path.isdir(root_kumi) and exclude_has_entry:
+            ok(msg)
+        else:
+            bad(
+                msg,
+                f"rc={r.returncode} root_kumi={os.path.isdir(root_kumi)} "
+                f"exclude={exclude_has_entry}",
+            )
+    finally:
+        shutil.rmtree(real_project, ignore_errors=True)
+        shutil.rmtree(outside, ignore_errors=True)
+
+
+def test_ensure_state_git_root_wins_over_stray_kumi_above():
+    # A stray .kumi above the repo's own .git must never hijack the repo; the walk
+    # stops at the nearest .git, so the anchor stays the repo root.
+    outside = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(outside, ".kumi"))
+        project = os.path.join(outside, "repo")
+        os.makedirs(os.path.join(project, ".git"))
+        deep = os.path.join(project, "decisions", "mart", "sub")
+        os.makedirs(deep)
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": deep,
+        }
+        r = run_ensure_state(payload)
+
+        root_kumi = os.path.join(project, ".kumi")
+        stray_kumi = os.path.join(outside, ".kumi")
+        exclude_path = os.path.join(project, ".git", "info", "exclude")
+        exclude_has_entry = False
+        if os.path.isfile(exclude_path):
+            with open(exclude_path, encoding="utf-8") as f:
+                exclude_has_entry = ".kumi/" in f.read().splitlines()
+
+        msg = "a stray .kumi above the repo root never hijacks the repo's own .git anchor"
+        if (
+            r.returncode == 0
+            and os.path.isdir(root_kumi)
+            and not os.listdir(stray_kumi)
+            and exclude_has_entry
+        ):
+            ok(msg)
+        else:
+            bad(
+                msg,
+                f"rc={r.returncode} root_kumi={os.path.isdir(root_kumi)} "
+                f"stray_kumi_contents={os.listdir(stray_kumi)} exclude={exclude_has_entry}",
+            )
+    finally:
+        shutil.rmtree(outside, ignore_errors=True)
+
+
+def test_ensure_state_kumi_state_dir_relative_anchors_to_repo_root():
+    project = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(project, ".git"))
+        deep = os.path.join(project, "decisions", "mart")
+        os.makedirs(deep)
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "prompt": "/kumi:yui do it",
+            "cwd": deep,
+        }
+        r = run_ensure_state(payload, env_extra={"KUMI_STATE_DIR": "mystate"})
+        target = os.path.join(project, "mystate")
+        nested = os.path.join(deep, "mystate")
+        msg = "a relative KUMI_STATE_DIR anchors to the repo root, not the subdirectory"
+        if r.returncode == 0 and os.path.isdir(target) and not os.path.isdir(nested):
+            ok(msg)
+        else:
+            bad(
+                msg,
+                f"rc={r.returncode} target={os.path.isdir(target)} nested={os.path.isdir(nested)}",
+            )
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
 def main():
     try:
         contract = load_contract(CONTRACT)
@@ -1662,6 +1942,11 @@ def main():
     test_positive_valid_sample(contract)
     test_negative_cases(contract)
     test_role_kind_devops_before_ops()
+    test_house_rules_present_in_every_generated_agent()
+    test_house_rules_present_in_yui_skill()
+    test_build_agents_check_catches_house_rules_drift()
+    test_shift_headings_skips_fenced_code_blocks()
+    test_yui_skill_does_not_contradict_verify_rule()
     test_chat_ops_workflow_permissions()
     test_chat_ops_grants_statuses_write()
     test_report_if_error_prints_github_message()
@@ -1719,6 +2004,11 @@ def main():
     test_ensure_state_non_string_cwd_falls_back()
     test_ensure_state_non_utf8_exclude_file()
     test_ensure_state_git_as_file_skips_exclude()
+    test_ensure_state_anchors_to_repo_root_from_subdirectory()
+    test_ensure_state_reuses_existing_ancestor_kumi()
+    test_ensure_state_resolves_symlinked_ancestor()
+    test_ensure_state_git_root_wins_over_stray_kumi_above()
+    test_ensure_state_kumi_state_dir_relative_anchors_to_repo_root()
     print()
     print(f"{PASS} passed, {FAIL} failed")
     return 1 if FAIL else 0

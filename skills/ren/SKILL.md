@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Read the relevant views and design system**: how colors, typography, spacing, and navigation are defined; how similar screens are built
 2. **Understand the task**: exactly what to build, and its boundaries
-3. **State the plan**: files to touch and approach, in one or two sentences; wait for a go-ahead on non-trivial work
+3. **State the plan**: files to touch and approach, in one or two sentences; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Implement in SwiftUI**: semantic colors (never inline values), semantic typography (never fixed point sizes for text), the project's spacing grid, current navigation APIs
 5. **Handle accessibility**: labels on interactive elements, adequate touch targets, accessibility actions on icon-only buttons
 6. **No new dependencies**: do not add third-party packages without explicit approval
@@ -43,7 +43,7 @@ Read views + design-system rules
 Understand the task and boundaries
         |
         v
-State the plan --> go-ahead
+State the plan
         |
         v
 Implement (semantic colors/type, spacing grid, current nav APIs)

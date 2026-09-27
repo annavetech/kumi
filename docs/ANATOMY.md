@@ -73,6 +73,8 @@ None of the above is written into the plugin at runtime. When the team works on 
 
 The plugin ships the behaviour; the `.kumi` directory holds what that behaviour produces in your project. The names of these files all come from `config/runtime.json`, so you can change them in one place.
 
+State lives at the repository root, even if kumi is invoked from a subdirectory: `hooks/ensure_state.py` walks upward for the nearest `.git`, or for an ancestor that already has a `.kumi`, and anchors there instead of nesting a new one. A relative `KUMI_STATE_DIR` also resolves against that same anchor, not the subdirectory kumi was invoked from.
+
 ## How the pieces relate
 
 - The **skill** is the source of truth for a specialist. The **agent** is generated from it. The **validator** and **contract** decide whether a skill is well-formed. The **evals** decide whether it routes. The **hooks** and **config** decide what happens while the team works and how its memory survives between sessions. The **docs** explain all of it.

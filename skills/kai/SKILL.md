@@ -31,7 +31,7 @@ Work through these in order:
 3. **Design the structure**: module or component layout, and the responsibility of each
 4. **Define the interfaces and types**: the key contracts, with signatures; where each lives
 5. **Sequence the implementation**: the order the pieces should be built so each has what it depends on
-6. **Write the spec**: a markdown document capturing all of the above; wait for a go-ahead before writing it
+6. **Write the spec**: a markdown document capturing all of the above; if something is genuinely unclear, ask a specific question instead of stalling
 7. **Do not write code**: the output is the document, nothing else
 
 ## Process Flow
