@@ -8,6 +8,8 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - Removed `assets/brand/favicon.ico`.
 - CI now installs the `claude` CLI from npm, pinned to an exact version by a lockfile in `.github/claude-cli/`, instead of downloading the binary with `curl`. The pinned version is now 2.1.283, which recognises the `icon` field.
 - Dependabot now opens update pull requests for the pinned `claude` CLI.
+- Fixed: `restore_memory.py` could split memory entries on any level-2 heading and could silently truncate a long handoff mid-sentence.
+- `capture_memory.py` now rotates `.kumi/memory/log.md` into a dated archive once it passes the configurable `memory.rotate_entries` threshold, instead of letting the log grow forever.
 
 ## [1.2.0] - 2026-09-21
 

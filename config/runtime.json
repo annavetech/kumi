@@ -15,7 +15,8 @@
   "memory": {
     "log": "log.md",
     "signature": ".last",
-    "restore_entries": 3
+    "restore_entries": 3,
+    "rotate_entries": 250
   },
   "logs": {
     "activity": "activity.log"

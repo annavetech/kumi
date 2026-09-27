@@ -14,7 +14,7 @@ _DEFAULTS = {
         "logs": "logs",
         "metrics": "metrics",
     },
-    "memory": {"log": "log.md", "signature": ".last", "restore_entries": 3},
+    "memory": {"log": "log.md", "signature": ".last", "restore_entries": 3, "rotate_entries": 250},
     "logs": {"activity": "activity.log"},
     "metrics": {"sessions": "sessions.jsonl", "agents": "agents.jsonl"},
 }
