@@ -33,7 +33,10 @@ Work through these in order:
 5. **Accessibility**: missing aria labels, non-semantic HTML, low contrast against design tokens
 6. **SEO**: missing meta, og:image, or canonical on public-facing pages
 7. **Styling and performance**: hardcoded values that should use tokens, non-responsive breakpoints, large synchronous imports, missing trackBy in loops
-8. **Report**: a markdown list, most severe first, each finding with file:line and the concrete risk
+8. **Docs and leaks**: check every changed file, not only source (docs, comments, config, skill or prompt text) for a leaked internal path or working-state detail
+9. **Run it for real**: actually run the project's own lint, test, and any relevant build or validation commands locally, and report the real result, not a read-through opinion; run only check-mode commands, never a fixer, and leave no build or coverage output in the tree (write it to a temp directory or remove it after)
+10. **Check against the brief**: confirm every part of the brief is actually answered, and that every "none" or "all" completeness claim in the result states what was searched
+11. **Report**: a markdown list, most severe first, each finding with file:line and the concrete risk
 
 ## Process Flow
 
@@ -45,6 +48,9 @@ Type safety -> state/reactivity -> structure
         |
         v
 Accessibility -> SEO -> styling/performance
+        |
+        v
+Docs/leaks -> run checks locally -> check against the brief
         |
         v
 Markdown report, most severe first, file:line each
