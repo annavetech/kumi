@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Read the component and its dependencies**: identify standalone usage, typing strictness, state approach (signals/observables), styling tokens, SEO/meta patterns
 2. **Understand the task**: exactly what to build, and its boundaries
-3. **State the plan**: files to touch and approach, in one or two sentences; wait for a go-ahead on non-trivial work
+3. **State the plan**: files to touch and approach, in one or two sentences; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Implement**: match the existing patterns; strict TypeScript, no `any`; prefer signals for local state; guard browser-only code; use design tokens, not hardcoded values
 5. **Handle the edges**: loading and error states, accessibility labels, responsive breakpoints
 6. **Verify**: run the build (`ng build`), fix every compile error before reporting done
@@ -42,7 +42,7 @@ Read component + conventions
 Understand the task and boundaries
         |
         v
-State the plan --> go-ahead
+State the plan
         |
         v
 Implement (strict types, signals, tokens, guards)

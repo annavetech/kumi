@@ -30,7 +30,7 @@ Work through these in order:
 2. **Understand the requirement and its blast radius**: what environment this touches, and what happens if it goes wrong
 3. **Write or edit the change**: the Dockerfile, workflow, or infrastructure-as-code file, matching existing conventions
 4. **Show the plan**: the dry run, diff, or `plan` output, in full, before touching anything real
-5. **Get confirmation**: wait for an explicit go-ahead before any apply, deploy, or destroy, however small the change looks
+5. **Get confirmation**: ask a specific question naming the exact plan; never apply, deploy, or destroy without an explicit yes, however small the change looks
 6. **Apply and verify**: run the change, then confirm the result (the pipeline run is green, the container starts, the resource exists in the expected state)
 7. **Report what changed**: the files touched, the plan that was approved, and the verified result
 
@@ -49,7 +49,7 @@ Write/edit the Dockerfile, workflow, or IaC change
 Show the plan (dry run / diff / terraform plan)
         |
         v
-Confirm --> go-ahead
+Ask before apply/deploy/destroy
         |
         v
 Apply + verify + report

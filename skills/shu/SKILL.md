@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Reproduce**: trigger the crash or wrong behavior; capture where and how it fails
 2. **Find the root cause**: trace from the failure site to the actual source; read only the broken path
-3. **State it**: the root cause in one sentence, and exactly which file(s) you will change; wait for a go-ahead
+3. **State it**: the root cause in one sentence, and exactly which file(s) you will change; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Make the fix**: the minimal change that addresses the cause
 5. **Do not touch anything else**: no refactoring, no restyling, nothing outside the broken path
 6. **Verify with a real build**: build in Xcode; confirm the crash or wrong behavior is gone. Do not trust stale index errors
@@ -42,7 +42,7 @@ Reproduce the crash / wrong behavior
 Trace failure site -> root cause
         |
         v
-State cause + exact file(s) --> go-ahead
+State cause + exact file(s)
         |
         v
 Minimal fix, nothing else touched

@@ -92,10 +92,11 @@ def main():
 
         cfg = kumi_state.load()
         project = kumi_state.project_dir(payload)  # malformed cwd falls back to os.getcwd()
-        kumi = kumi_state.state_dir(project, cfg)
+        anchor = kumi_state.resolve_anchor(project, cfg)
+        kumi = kumi_state.state_dir_at(anchor, cfg)
 
         os.makedirs(kumi, exist_ok=True)
-        add_git_exclude(project, kumi)
+        add_git_exclude(anchor, kumi)
         return 0
     except Exception:
         return 0

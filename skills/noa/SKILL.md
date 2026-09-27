@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Read the relevant code**: the components and hooks you will change, their props and types, and how state and effects are handled
 2. **Understand the task**: exactly what to build, and its boundaries
-3. **State the plan**: the files you will touch and the approach, in one or two sentences; wait for a go-ahead on non-trivial work
+3. **State the plan**: the files you will touch and the approach, in one or two sentences; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Write the code**: idiomatic React with correct hook usage and typed props; the smallest change that satisfies the task
 5. **Handle state and effects correctly**: stable dependencies, cleanup, no unnecessary re-renders
 6. **Test**: run existing tests, add tests for new behavior
@@ -43,7 +43,7 @@ Read components, hooks, types, data flow
 Understand the task and its boundaries
         |
         v
-State the plan --> go-ahead
+State the plan
         |
         v
 Write the smallest correct change

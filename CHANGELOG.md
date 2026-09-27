@@ -10,6 +10,10 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - Dependabot now opens update pull requests for the pinned `claude` CLI.
 - Fixed: `restore_memory.py` could split memory entries on any level-2 heading and could silently truncate a long handoff mid-sentence.
 - `capture_memory.py` now rotates `.kumi/memory/log.md` into a dated archive once it passes the configurable `memory.rotate_entries` threshold, instead of letting the log grow forever.
+- Fixed: kumi called from a subdirectory could nest a new `.kumi` directory instead of anchoring to the existing one at the repository root.
+- Added `config/house_rules.md`, kumi's own shared behavior rules, now baked into every generated specialist agent.
+- Specialist skills now ask a specific question when something is unclear, instead of describing themselves as waiting for a go-ahead they have no channel to receive.
+- Fixed: `yui`'s own instructions told it not to verify a specialist's work; it now checks that a specialist's required steps were actually run and reported.
 
 ## [1.2.0] - 2026-09-21
 

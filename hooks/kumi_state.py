@@ -25,6 +25,8 @@ _CONFIG = os.path.join(
     "runtime.json",
 )
 
+_MAX_ANCESTOR_LEVELS = 50
+
 
 def load():
     """Return the runtime config as a dict, falling back to defaults on error."""
@@ -48,10 +50,33 @@ def project_dir(payload):
     return project
 
 
-def state_dir(project, cfg):
-    """Return the base state directory; KUMI_STATE_DIR overrides the config's `state_dir`."""
+def resolve_anchor(project, cfg):
+    """Walk upward (bounded, symlinks resolved) to the nearest `.git`; a `.kumi` at or below it
+    wins, one above it never does. Falls back to project if neither is found."""
+    current = os.path.realpath(project)
+    git_root = None
+    for _ in range(_MAX_ANCESTOR_LEVELS):
+        if os.path.isdir(os.path.join(current, cfg["state_dir"])):
+            return current
+        if os.path.exists(os.path.join(current, ".git")):
+            git_root = current
+            break
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    return git_root if git_root is not None else project
+
+
+def state_dir_at(anchor, cfg):
+    """Join the state dir (or KUMI_STATE_DIR override) onto an already-resolved anchor."""
     override = os.environ.get("KUMI_STATE_DIR")
     if override:
         override = os.path.expanduser(override)
-        return override if os.path.isabs(override) else os.path.join(project, override)
-    return os.path.join(project, cfg["state_dir"])
+        return override if os.path.isabs(override) else os.path.join(anchor, override)
+    return os.path.join(anchor, cfg["state_dir"])
+
+
+def state_dir(project, cfg):
+    """Return the base state directory; KUMI_STATE_DIR overrides the config's `state_dir`."""
+    return state_dir_at(resolve_anchor(project, cfg), cfg)

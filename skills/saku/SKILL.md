@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Read the current schema**: tables, columns, types, indexes, constraints, and how the target tables are queried
 2. **Understand the task**: exactly what data shape or query is needed, and its boundaries
-3. **State the plan**: the change and its risk (locking, data rewrite, downtime), in one or two sentences; wait for a go-ahead on anything that touches existing data
+3. **State the plan**: the change and its risk (locking, data rewrite, downtime), in one or two sentences; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Write the change**: schema/query/migration consistent with the existing conventions; the smallest correct change
 5. **Make migrations safe and reversible**: additive first, backfill deliberately, avoid long locks; provide a down path
 6. **Verify**: check the query plan for the intended index usage; run the migration against a copy or in a transaction where possible
@@ -42,7 +42,7 @@ Read current schema + query patterns
 Understand the task and its boundaries
         |
         v
-State the plan + risk --> go-ahead
+State the plan + risk
         |
         v
 Write the smallest correct change

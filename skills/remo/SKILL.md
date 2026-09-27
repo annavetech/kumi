@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Read the current model and access patterns**: existing collections/keys, how they are read and written, and the query and consistency needs
 2. **Understand the task**: exactly what data and access pattern is needed, and its boundaries
-3. **State the plan**: the model or change and its trade-offs (duplication, consistency, index cost), in one or two sentences; wait for a go-ahead on anything touching existing data
+3. **State the plan**: the model or change and its trade-offs (duplication, consistency, index cost), in one or two sentences; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Design the change**: shape documents/keys and indexes for the access patterns; the smallest correct change
 5. **Handle consistency and migration**: be explicit about duplication and how it stays in sync; plan any data reshape deliberately
 6. **Verify**: confirm the intended reads and writes are efficient (indexed, single round-trip where it matters) and the model serves them
@@ -42,7 +42,7 @@ Read current model + access patterns
 Understand the task and its boundaries
         |
         v
-State the plan + trade-offs --> go-ahead
+State the plan + trade-offs
         |
         v
 Shape model/keys/indexes for the queries

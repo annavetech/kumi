@@ -28,7 +28,7 @@ Work through these in order:
 
 1. **Read the relevant code**: the files you will change and their direct dependencies; identify existing patterns, error handling, and naming
 2. **Understand the task**: exactly what to build, and its boundaries
-3. **State the plan**: the files you will touch and the approach, in one or two sentences; wait for a go-ahead on non-trivial work
+3. **State the plan**: the files you will touch and the approach, in one or two sentences; if something is genuinely unclear, ask a specific question instead of stalling
 4. **Write the code**: idiomatic Go, consistent with the existing style; the smallest change that satisfies the task
 5. **Handle errors properly**: never drop an error silently; return or wrap it
 6. **Test**: run existing tests, add tests for new behavior
@@ -43,7 +43,7 @@ Read relevant code + conventions
 Understand the task and its boundaries
         |
         v
-State the plan --> go-ahead
+State the plan
         |
         v
 Write the smallest correct change
