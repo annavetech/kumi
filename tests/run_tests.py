@@ -3,6 +3,7 @@
 Runs every check the plugin ships with, including that the validator rejects malformed skills."""
 
 import contextlib
+import datetime
 import io
 import json
 import os
@@ -11,17 +12,23 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SCRIPTS_DIR = os.path.join(ROOT, "scripts")
 GITHUB_SCRIPTS_DIR = os.path.join(ROOT, ".github", "scripts")
+HOOKS_DIR = os.path.join(ROOT, "hooks")
 sys.path.insert(0, HERE)
 sys.path.insert(0, SCRIPTS_DIR)
 sys.path.insert(0, GITHUB_SCRIPTS_DIR)
+sys.path.insert(0, HOOKS_DIR)
 
+import capture_memory  # noqa: E402
 import chat_commands  # noqa: E402
+import restore_memory  # noqa: E402
 import strip_stale_approval  # noqa: E402
 from _github import report_if_error  # noqa: E402
 from build_agents import role_kind  # noqa: E402
@@ -852,6 +859,489 @@ def test_record_metrics_subagent_agent_name():
         shutil.rmtree(project, ignore_errors=True)
 
 
+def run_restore_memory(payload_obj, proc_cwd=None):
+    """Run restore_memory.py with a JSON payload on stdin, return CompletedProcess."""
+    stdin = json.dumps(payload_obj) if payload_obj is not None else ""
+    return subprocess.run(
+        [sys.executable, os.path.join(ROOT, "hooks", "restore_memory.py")],
+        input=stdin, capture_output=True, text=True, cwd=proc_cwd,
+    )
+
+
+def restore_memory_context(project):
+    payload = {"hook_event_name": "SessionStart", "cwd": project}
+    r = run_restore_memory(payload, proc_cwd=project)
+    context = ""
+    if r.stdout.strip():
+        context = json.loads(r.stdout)["hookSpecificOutput"]["additionalContext"]
+    return r, context
+
+
+def test_restore_memory_does_not_split_on_body_headings():
+    # Two body headings, so the old "last 3 fragments" split drops the first real
+    # entry entirely; the new split must still keep both real entries in full.
+    project = tempfile.mkdtemp()
+    try:
+        memory_dir = os.path.join(project, ".kumi", "memory")
+        os.makedirs(memory_dir)
+        log_text = (
+            "# kumi memory\n\n"
+            "Append-only record of finished work.\n"
+            "\n## 2026-09-14 11:23:01\n"
+            "\nSome earlier entry text.\n"
+            "\n## Scope - all 15 items required\n"
+            "\nScope body text.\n"
+            "\n## What eks-anywhere actually does\n"
+            "\nMore scope body.\n"
+            "\n## 2026-09-14 11:36:07\n"
+            "\nSecond entry text.\n"
+        )
+        with open(os.path.join(memory_dir, "log.md"), "w", encoding="utf-8") as f:
+            f.write(log_text)
+        r, context = restore_memory_context(project)
+        embedded = (
+            "Some earlier entry text.\n\n"
+            "## Scope - all 15 items required\n\n"
+            "Scope body text.\n\n"
+            "## What eks-anywhere actually does\n\n"
+            "More scope body."
+        )
+        name = "restore_memory keeps a body heading inside an entry, not as its own boundary"
+        if (
+            r.returncode == 0
+            and "## 2026-09-14 11:23:01" in context
+            and "## 2026-09-14 11:36:07" in context
+            and embedded in context
+        ):
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} context={context!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_restore_memory_never_truncates_current_handoff():
+    cases = [
+        ("handoff over the combined cap stays whole", 6000, True),
+        ("handoff over the sane ceiling is cut with a pointer, never silently", 50000, False),
+    ]
+    for label, size, expect_verbatim in cases:
+        project = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(project, ".kumi"))
+            handoff_text = "x" * size
+            with open(os.path.join(project, ".kumi", "handoff.md"), "w", encoding="utf-8") as f:
+                f.write(handoff_text)
+            r, context = restore_memory_context(project)
+            if expect_verbatim:
+                condition = (
+                    r.returncode == 0 and handoff_text in context and "[truncated]" not in context
+                )
+            else:
+                condition = (
+                    r.returncode == 0
+                    and handoff_text not in context
+                    and "read .kumi/handoff.md directly" in context
+                    and "[truncated]" not in context
+                )
+            if condition:
+                ok(label)
+            else:
+                bad(label, f"rc={r.returncode} context_len={len(context)} stderr={r.stderr}")
+        finally:
+            shutil.rmtree(project, ignore_errors=True)
+
+
+def test_restore_memory_drops_oldest_whole_entries_over_budget():
+    # A small handoff leaves most of the budget for memory; three large entries do not
+    # all fit, so the oldest whole entry is dropped rather than any entry cut mid-body.
+    project = tempfile.mkdtemp()
+    try:
+        memory_dir = os.path.join(project, ".kumi", "memory")
+        os.makedirs(memory_dir)
+        body = "x" * (restore_memory.MAX_CONTEXT_CHARS // 3)
+        log_text = "# kumi memory\n\n" + "".join(
+            f"\n## 2026-0{i}-01 00:00:0{i}\n\n{body}\n" for i in (1, 2, 3)
+        )
+        with open(os.path.join(memory_dir, "log.md"), "w", encoding="utf-8") as f:
+            f.write(log_text)
+        r, context = restore_memory_context(project)
+        name = "restore_memory drops the oldest whole entry, never a partial one, over budget"
+        if (
+            r.returncode == 0
+            and "## 2026-03-01 00:00:03" in context
+            and "## 2026-01-01 00:00:01" not in context
+        ):
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} context_len={len(context)} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_resolve_restore_entries_handles_bad_zero_and_negative():
+    cases = [
+        ({"memory": {"restore_entries": 5}}, 5, "a good value passes through"),
+        ({"memory": {"restore_entries": 0}}, 0, "zero means no entries, not the default"),
+        (
+            {"memory": {"restore_entries": -1}},
+            restore_memory.DEFAULT_RESTORE_ENTRIES,
+            "negative falls back to the default",
+        ),
+        (
+            {"memory": {"restore_entries": "nope"}},
+            restore_memory.DEFAULT_RESTORE_ENTRIES,
+            "non-numeric falls back to the default",
+        ),
+        (
+            {"memory": {"restore_entries": None}},
+            restore_memory.DEFAULT_RESTORE_ENTRIES,
+            "null falls back to the default",
+        ),
+        (
+            {"memory": {}},
+            restore_memory.DEFAULT_RESTORE_ENTRIES,
+            "missing key falls back to the default",
+        ),
+    ]
+    for cfg, expected, label in cases:
+        got = restore_memory.resolve_restore_entries(cfg)
+        name = f"resolve_restore_entries: {label}"
+        if got == expected:
+            ok(name)
+        else:
+            bad(name, f"cfg={cfg} got={got} expected={expected}")
+
+
+def run_capture_memory(payload_obj, proc_cwd=None):
+    """Run capture_memory.py with a JSON payload on stdin, return CompletedProcess."""
+    stdin = json.dumps(payload_obj) if payload_obj is not None else ""
+    return subprocess.run(
+        [sys.executable, os.path.join(ROOT, "hooks", "capture_memory.py")],
+        input=stdin, capture_output=True, text=True, cwd=proc_cwd,
+    )
+
+
+def test_capture_memory_rotates_when_log_exceeds_threshold():
+    project = tempfile.mkdtemp()
+    try:
+        kumi_dir = os.path.join(project, ".kumi")
+        memory_dir = os.path.join(kumi_dir, "memory")
+        os.makedirs(memory_dir)
+        with open(os.path.join(kumi_dir, "handoff.md"), "w", encoding="utf-8") as f:
+            f.write("work in progress")
+
+        with open(os.path.join(ROOT, "config", "runtime.json"), encoding="utf-8") as f:
+            threshold = json.load(f)["memory"]["rotate_entries"]
+
+        seeded = threshold - 1
+        entries = "".join(
+            f"\n## 2026-01-01 00:{i // 60:02d}:{i % 60:02d}\n\nold entry {i}\n"
+            for i in range(seeded)
+        )
+        with open(os.path.join(memory_dir, "log.md"), "w", encoding="utf-8") as f:
+            f.write("# kumi memory\n\nAppend-only record.\n" + entries)
+
+        payload = {"hook_event_name": "Stop", "cwd": project}
+        r = run_capture_memory(payload, proc_cwd=project)
+
+        archives = [
+            n for n in os.listdir(memory_dir)
+            if n.startswith("log.") and n != "log.md" and n.endswith(".md")
+        ]
+        log_path = os.path.join(memory_dir, "log.md")
+        remaining = 0
+        if os.path.isfile(log_path):
+            with open(log_path, encoding="utf-8") as f:
+                remaining = len(re.findall(r"\n## \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\n", f.read()))
+
+        name = "capture_memory rotates the oldest entries into an archive once the log fills up"
+        if r.returncode == 0 and archives and remaining < threshold:
+            ok(name)
+        else:
+            bad(
+                name,
+                f"rc={r.returncode} archives={archives} remaining={remaining} "
+                f"threshold={threshold} stderr={r.stderr}",
+            )
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_resolve_rotate_entries_handles_bad_zero_and_negative():
+    cases = [
+        ({"memory": {"rotate_entries": 100}}, 100, "a good value passes through"),
+        (
+            {"memory": {"rotate_entries": 0}},
+            capture_memory.DEFAULT_ROTATE_ENTRIES,
+            "zero falls back to the default",
+        ),
+        (
+            {"memory": {"rotate_entries": -5}},
+            capture_memory.DEFAULT_ROTATE_ENTRIES,
+            "negative falls back to the default",
+        ),
+        (
+            {"memory": {"rotate_entries": "nope"}},
+            capture_memory.DEFAULT_ROTATE_ENTRIES,
+            "non-numeric falls back to the default",
+        ),
+        (
+            {"memory": {"rotate_entries": None}},
+            capture_memory.DEFAULT_ROTATE_ENTRIES,
+            "null falls back to the default",
+        ),
+        (
+            {"memory": {}},
+            capture_memory.DEFAULT_ROTATE_ENTRIES,
+            "missing key falls back to the default",
+        ),
+    ]
+    for cfg, expected, label in cases:
+        got = capture_memory.resolve_rotate_entries(cfg)
+        name = f"resolve_rotate_entries: {label}"
+        if got == expected:
+            ok(name)
+        else:
+            bad(name, f"cfg={cfg} got={got} expected={expected}")
+
+
+def test_capture_memory_appends_second_rotation_onto_same_dated_archive():
+    project = tempfile.mkdtemp()
+    try:
+        kumi_dir = os.path.join(project, ".kumi")
+        memory_dir = os.path.join(kumi_dir, "memory")
+        os.makedirs(memory_dir)
+
+        with open(os.path.join(ROOT, "config", "runtime.json"), encoding="utf-8") as f:
+            threshold = json.load(f)["memory"]["rotate_entries"]
+
+        def seed_log(day):
+            seeded = threshold - 1
+            entries = "".join(
+                f"\n## 2026-01-{day:02d} 00:{i // 60:02d}:{i % 60:02d}\n\nold entry {i}\n"
+                for i in range(seeded)
+            )
+            with open(os.path.join(memory_dir, "log.md"), "w", encoding="utf-8") as f:
+                f.write("# kumi memory\n\nAppend-only record.\n" + entries)
+
+        with open(os.path.join(kumi_dir, "handoff.md"), "w", encoding="utf-8") as f:
+            f.write("first rotation")
+        seed_log(1)
+        r1 = run_capture_memory({"hook_event_name": "Stop", "cwd": project}, proc_cwd=project)
+
+        archive_path = os.path.join(memory_dir, f"log.{datetime.date.today().isoformat()}.md")
+        first_size = os.path.getsize(archive_path) if os.path.isfile(archive_path) else 0
+
+        with open(os.path.join(kumi_dir, "handoff.md"), "w", encoding="utf-8") as f:
+            f.write("second rotation, different handoff")
+        seed_log(2)
+        r2 = run_capture_memory({"hook_event_name": "Stop", "cwd": project}, proc_cwd=project)
+
+        second_size = os.path.getsize(archive_path) if os.path.isfile(archive_path) else -1
+
+        name = "capture_memory appends a same-day second rotation onto the existing dated archive"
+        if (
+            r1.returncode == 0 and r2.returncode == 0
+            and first_size > 0 and second_size > first_size
+        ):
+            ok(name)
+        else:
+            bad(
+                name,
+                f"rc1={r1.returncode} rc2={r2.returncode} first_size={first_size} "
+                f"second_size={second_size} stderr1={r1.stderr} stderr2={r2.stderr}",
+            )
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_capture_memory_lock_serializes_concurrent_holders():
+    memory_dir = tempfile.mkdtemp()
+    try:
+        active = []
+        overlap = []
+        guard = threading.Lock()
+
+        def worker():
+            with capture_memory._locked(memory_dir):
+                with guard:
+                    active.append(1)
+                    if len(active) > 1:
+                        overlap.append(True)
+                time.sleep(0.03)
+                with guard:
+                    active.pop()
+
+        threads = [threading.Thread(target=worker) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        name = "capture_memory._locked lets only one holder in at a time"
+        if not overlap and not os.path.exists(os.path.join(memory_dir, ".lock")):
+            ok(name)
+        else:
+            bad(name, f"overlap={overlap}")
+    finally:
+        shutil.rmtree(memory_dir, ignore_errors=True)
+
+
+def test_capture_memory_lock_reclaims_a_stale_lock():
+    memory_dir = tempfile.mkdtemp()
+    try:
+        lock_path = os.path.join(memory_dir, ".lock")
+        with open(lock_path, "w", encoding="utf-8"):
+            pass
+        old = time.time() - 120
+        os.utime(lock_path, (old, old))
+
+        acquired = []
+        with capture_memory._locked(memory_dir, timeout=2.0, stale_after=1.0):
+            acquired.append(True)
+
+        name = "capture_memory._locked reclaims a lock left behind by a crashed hook"
+        if acquired and not os.path.exists(lock_path):
+            ok(name)
+        else:
+            bad(name, f"acquired={acquired} lock_exists={os.path.exists(lock_path)}")
+    finally:
+        shutil.rmtree(memory_dir, ignore_errors=True)
+
+
+def test_capture_memory_lock_times_out_without_blocking_forever():
+    memory_dir = tempfile.mkdtemp()
+    try:
+        lock_path = os.path.join(memory_dir, ".lock")
+        with open(lock_path, "w", encoding="utf-8"):
+            pass  # freshly held, not stale, so this must not be reclaimed
+
+        name = "capture_memory._locked gives up after its timeout instead of blocking forever"
+        try:
+            with capture_memory._locked(memory_dir, timeout=0.2, stale_after=60.0):
+                pass
+            bad(name, "lock was acquired despite a live holder")
+        except TimeoutError:
+            ok(name)
+    finally:
+        shutil.rmtree(memory_dir, ignore_errors=True)
+
+
+def test_capture_memory_fails_open_when_lock_is_held():
+    project = tempfile.mkdtemp()
+    try:
+        kumi_dir = os.path.join(project, ".kumi")
+        memory_dir = os.path.join(kumi_dir, "memory")
+        os.makedirs(memory_dir)
+        with open(os.path.join(kumi_dir, "handoff.md"), "w", encoding="utf-8") as f:
+            f.write("work in progress")
+        # Simulates another hook currently mid-write.
+        with open(os.path.join(memory_dir, ".lock"), "w", encoding="utf-8"):
+            pass
+
+        payload = {"hook_event_name": "Stop", "cwd": project}
+        r = run_capture_memory(payload, proc_cwd=project)
+
+        log_path = os.path.join(memory_dir, "log.md")
+        name = "capture_memory exits 0 and writes nothing when another run holds the lock"
+        if r.returncode == 0 and not os.path.isfile(log_path):
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} log_exists={os.path.isfile(log_path)} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_capture_memory_lock_release_never_removes_a_lock_it_no_longer_owns():
+    memory_dir = tempfile.mkdtemp()
+    try:
+        lock_path = os.path.join(memory_dir, ".lock")
+        cm1 = capture_memory._locked(memory_dir, timeout=2.0, stale_after=1.0)
+        cm1.__enter__()  # holder 1 acquires
+
+        old = time.time() - 120
+        os.utime(lock_path, (old, old))  # make it look abandoned to a second holder
+
+        cm2 = capture_memory._locked(memory_dir, timeout=2.0, stale_after=1.0)
+        cm2.__enter__()  # holder 2 reclaims the stale lock, writes its own token
+        with open(lock_path, encoding="utf-8") as f:
+            owner_token = f.read()
+
+        cm1.__exit__(None, None, None)  # holder 1's release must not touch holder 2's lock
+
+        still_there = os.path.isfile(lock_path)
+        current_token = None
+        if still_there:
+            with open(lock_path, encoding="utf-8") as f:
+                current_token = f.read()
+
+        name = "capture_memory._locked release does not remove a lock now owned by another holder"
+        if still_there and current_token == owner_token:
+            ok(name)
+        else:
+            bad(
+                name,
+                f"still_there={still_there} current_token={current_token} "
+                f"owner_token={owner_token}",
+            )
+
+        cm2.__exit__(None, None, None)
+    finally:
+        shutil.rmtree(memory_dir, ignore_errors=True)
+
+
+def test_capture_memory_repeated_remove_failure_does_not_duplicate_archive():
+    project = tempfile.mkdtemp()
+    try:
+        kumi_dir = os.path.join(project, ".kumi")
+        memory_dir = os.path.join(kumi_dir, "memory")
+        os.makedirs(memory_dir)
+        with open(os.path.join(kumi_dir, "handoff.md"), "w", encoding="utf-8") as f:
+            f.write("work in progress")
+
+        with open(os.path.join(ROOT, "config", "runtime.json"), encoding="utf-8") as f:
+            threshold = json.load(f)["memory"]["rotate_entries"]
+
+        seeded = threshold - 1
+        entries = "".join(
+            f"\n## 2026-01-01 00:{i // 60:02d}:{i % 60:02d}\n\nold entry {i}\n"
+            for i in range(seeded)
+        )
+        log_path = os.path.join(memory_dir, "log.md")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write("# kumi memory\n\nAppend-only record.\n" + entries)
+
+        archive_path = os.path.join(memory_dir, f"log.{datetime.date.today().isoformat()}.md")
+        payload = {"hook_event_name": "Stop", "cwd": project}
+        real_remove = os.remove
+
+        def guarded_remove(path, *a, **kw):
+            if os.path.abspath(path) == os.path.abspath(log_path):
+                raise OSError("simulated: file held open")
+            return real_remove(path, *a, **kw)
+
+        def archive_size():
+            return os.path.getsize(archive_path) if os.path.isfile(archive_path) else -1
+
+        with mock.patch("os.remove", side_effect=guarded_remove):
+            with mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
+                capture_memory.main()
+            size_after_first = archive_size()
+
+            with mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
+                capture_memory.main()
+            size_after_second = archive_size()
+
+        name = "capture_memory does not duplicate the archive when removing the log keeps failing"
+        if size_after_first > 0 and size_after_second == size_after_first:
+            ok(name)
+        else:
+            bad(name, f"size_after_first={size_after_first} size_after_second={size_after_second}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
 def run_ensure_state(payload_obj, env_extra=None, proc_cwd=None):
     """Run ensure_state.py with a JSON payload on stdin; proc_cwd is the subprocess's cwd."""
     env = dict(os.environ)
@@ -1206,6 +1696,19 @@ def main():
     test_eval_cases_pass()
     test_agents_up_to_date()
     test_hooks_never_fail()
+    test_restore_memory_does_not_split_on_body_headings()
+    test_restore_memory_never_truncates_current_handoff()
+    test_restore_memory_drops_oldest_whole_entries_over_budget()
+    test_resolve_restore_entries_handles_bad_zero_and_negative()
+    test_capture_memory_rotates_when_log_exceeds_threshold()
+    test_resolve_rotate_entries_handles_bad_zero_and_negative()
+    test_capture_memory_appends_second_rotation_onto_same_dated_archive()
+    test_capture_memory_lock_serializes_concurrent_holders()
+    test_capture_memory_lock_reclaims_a_stale_lock()
+    test_capture_memory_lock_times_out_without_blocking_forever()
+    test_capture_memory_fails_open_when_lock_is_held()
+    test_capture_memory_lock_release_never_removes_a_lock_it_no_longer_owns()
+    test_capture_memory_repeated_remove_failure_does_not_duplicate_archive()
     test_record_metrics_subagent_agent_name()
     test_ensure_state_creates_on_kumi_call()
     test_ensure_state_non_kumi_call_is_noop()

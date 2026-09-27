@@ -14,7 +14,9 @@ The content itself comes from the specialists as they work. Each role writes its
 
 A second hook (`hooks/restore_memory.py`) fires on `SessionStart`. It reads the most recent memory entries and the current handoff and passes them into the new session as context. So the session resumes with what the last one decided and where it left off, instead of a blank slate.
 
-The restored context is capped in size so it never floods the session. It shows the recent entries and the current handoff, not the entire history.
+A real entry always starts with a `## YYYY-MM-DD HH:MM:SS` heading; restoring splits on that exact shape, not on any level-2 heading, so a markdown subheading inside a pasted-in handoff or decision file is never mistaken for an entry boundary.
+
+The restored context is capped in size so it never floods the session, but the current handoff always wins: it is shown in full even if that means dropping older memory entries first. Only a handoff far past any reasonable size is itself cut, and then it ends with a pointer to `.kumi/handoff.md` rather than a silent cut.
 
 ## What gets written
 
@@ -28,6 +30,8 @@ The restored context is capped in size so it never floods the session. It shows 
 ```
 
 `.kumi/memory/log.md` is append-only. Nothing is overwritten. Each entry lists the decisions on record and the handoff as it stood when the agent stopped.
+
+Once the log is about to reach the configured entry threshold (`memory.rotate_entries` in `config/runtime.json`, default 250), capture rotates it: everything currently in `log.md` moves into a dated archive, `memory/log.<rotation-date>.md`, and `log.md` starts fresh with the new entry. This is a move, not a deletion, so the append-only guarantee still holds.
 
 ## Why it is reliable
 

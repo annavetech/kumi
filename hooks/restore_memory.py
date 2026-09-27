@@ -4,12 +4,48 @@ Surfaces the project's recent kumi memory and current handoff as additional cont
 
 import json
 import os
+import re
 import sys
 
 import kumi_state
 
-# Cap on how much memory we inject, so a long history never floods a new session.
+# Cap on the combined context we inject, so a long history never floods a new session.
 MAX_CONTEXT_CHARS = 4000
+
+# The handoff is the higher-priority piece and is shown in full even past the combined
+# cap above; this is the ceiling only for a truly runaway handoff file.
+MAX_HANDOFF_CHARS = 20000
+
+HANDOFF_POINTER = (
+    "\n\n[handoff continues; read .kumi/handoff.md directly, it is longer than shown here]"
+)
+
+# Real entries always start with "## YYYY-MM-DD HH:MM:SS" (written by capture_memory.py).
+# A body heading such as "## Scope" inside a pasted-in handoff never matches this exact shape.
+ENTRY_RE = re.compile(r"\n## (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\n")
+
+DEFAULT_RESTORE_ENTRIES = 3
+
+
+def resolve_restore_entries(cfg):
+    """Return a valid entry count: 0 means none, bad or negative falls back to the default."""
+    raw = cfg["memory"].get("restore_entries", DEFAULT_RESTORE_ENTRIES)
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_RESTORE_ENTRIES
+    return DEFAULT_RESTORE_ENTRIES if n < 0 else n
+
+
+def parse_entries(text):
+    """Split log text into (stamp, body) pairs, one per real timestamped entry, file order."""
+    matches = list(ENTRY_RE.finditer(text))
+    entries = []
+    for i, m in enumerate(matches):
+        start = m.end()
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        entries.append((m.group(1), text[start:end]))
+    return entries
 
 
 def read_payload():
@@ -45,9 +81,8 @@ def main():
         if not os.path.isdir(kumi):
             return 0  # kumi not in use here
 
-        pieces = []
-
         # Recent memory entries (tail of the append-only log).
+        entries = []
         log_path = os.path.join(kumi, cfg["dirs"]["memory"], cfg["memory"]["log"])
         if os.path.isfile(log_path):
             try:
@@ -55,18 +90,11 @@ def main():
                     text = f.read()
             except OSError:
                 text = ""
-            # Entries start with a "## <timestamp>" heading; split on it and take the last few.
-            entries = text.split("\n## ")
-            n = int(cfg["memory"].get("restore_entries", 3))
-            recent = entries[-n:] if len(entries) > 1 else []
-            recent = [e for e in recent if e.strip() and not e.startswith("# kumi memory")]
-            if recent:
-                pieces.append(
-                    "Recent kumi memory from prior sessions (most recent last):\n\n## "
-                    + "\n## ".join(recent)
-                )
+            n = resolve_restore_entries(cfg)
+            entries = parse_entries(text)[-n:] if n > 0 else []
 
         # Current handoff, if a task was mid-flight.
+        handoff = ""
         handoff_path = os.path.join(kumi, cfg["files"]["handoff"])
         if os.path.isfile(handoff_path):
             try:
@@ -74,16 +102,41 @@ def main():
                     handoff = f.read().strip()
             except OSError:
                 handoff = ""
-            if handoff:
-                pieces.append("Current handoff (work in progress):\n\n" + handoff)
 
+        handoff_piece = ""
+        if handoff:
+            if len(handoff) > MAX_HANDOFF_CHARS:
+                handoff = handoff[:MAX_HANDOFF_CHARS] + HANDOFF_POINTER
+            handoff_piece = "Current handoff (work in progress):\n\n" + handoff
+
+        # The handoff never gets cut for the memory budget; memory fills what's left,
+        # whole entries only, most recent first, so an entry is never emitted mid-body.
+        separator = "\n\n---\n\n"
+        memory_header = "Recent kumi memory from prior sessions (most recent last):\n\n"
+        budget = MAX_CONTEXT_CHARS - len(handoff_piece)
+        if handoff_piece and entries:
+            budget -= len(separator)
+        if entries:
+            budget -= len(memory_header)
+
+        kept = []
+        for stamp, body in reversed(entries):
+            entry_text = f"## {stamp}\n{body}"
+            piece_len = len(entry_text) + (1 if kept else 0)  # +1 for the join newline
+            if piece_len > budget:
+                break
+            kept.insert(0, entry_text)
+            budget -= piece_len
+
+        memory_piece = ""
+        if kept:
+            memory_piece = memory_header + "\n".join(kept)
+
+        pieces = [p for p in (memory_piece, handoff_piece) if p]
         if not pieces:
             return 0
 
-        context = "\n\n---\n\n".join(pieces)
-        if len(context) > MAX_CONTEXT_CHARS:
-            context = context[:MAX_CONTEXT_CHARS] + "\n\n[truncated]"
-        emit(context)
+        emit(separator.join(pieces))
         return 0
     except Exception:
         return 0
