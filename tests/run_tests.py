@@ -222,6 +222,37 @@ def test_house_rules_present_in_yui_skill():
         ok(name)
 
 
+REVIEWER_SKILLS = ["mart", "ivo", "tiiu", "aki", "ryo"]
+REVIEWER_CHECKLIST_LABELS = ["Docs and leaks", "Run it for real", "Check against the brief"]
+
+
+def _reviewer_skill_body(name):
+    with open(os.path.join(ROOT, "skills", name, "SKILL.md"), encoding="utf-8") as f:
+        return f.read()
+
+
+def _reviewer_checklist_line(body, label):
+    # numbered position varies by file; compare the wording after the ordinal only.
+    match = re.search(r"^\d+\.\s+\*\*" + re.escape(label) + r"\*\*:.*$", body, re.MULTILINE)
+    return re.sub(r"^\d+\.\s+", "", match.group(0)) if match else None
+
+
+def test_reviewer_skills_share_identical_checklist_items():
+    for label in REVIEWER_CHECKLIST_LABELS:
+        lines = {
+            n: _reviewer_checklist_line(_reviewer_skill_body(n), label) for n in REVIEWER_SKILLS
+        }
+        missing = [n for n, line in lines.items() if line is None]
+        name = f"every reviewer skill has a '{label}' checklist item"
+        if missing:
+            bad(name, f"missing from: {missing}")
+            continue
+        ok(name)
+        distinct = set(lines.values())
+        name = f"every reviewer skill's '{label}' checklist item is worded identically"
+        ok(name) if len(distinct) == 1 else bad(name, f"wording differs: {lines}")
+
+
 def test_build_agents_check_catches_house_rules_drift():
     tmp_root = tempfile.mkdtemp()
     try:
@@ -2263,6 +2294,7 @@ def main():
     test_role_kind_devops_before_ops()
     test_house_rules_present_in_every_generated_agent()
     test_house_rules_present_in_yui_skill()
+    test_reviewer_skills_share_identical_checklist_items()
     test_build_agents_check_catches_house_rules_drift()
     test_shift_headings_skips_fenced_code_blocks()
     test_yui_skill_does_not_contradict_verify_rule()

@@ -30,8 +30,11 @@ Work through these in order:
 2. **Check correctness**: state and effect logic, dependencies, edge cases, error and loading states
 3. **Check performance**: unnecessary re-renders, missing memoization where it matters, expensive work in render
 4. **Check accessibility and quality**: semantics, labels, keyboard behavior, typing, naming, consistency with existing patterns
-5. **Rank findings**: order by severity (high, then medium, then low), each with the location and the suggested fix
-6. **Report**: a ranked list only; state clearly if nothing needs changing
+5. **Docs and leaks**: check every changed file, not only source (docs, comments, config, skill or prompt text) for a leaked internal path or working-state detail
+6. **Run it for real**: actually run the project's own lint, test, and any relevant build or validation commands locally, and report the real result, not a read-through opinion; run only check-mode commands, never a fixer, and leave no build or coverage output in the tree (write it to a temp directory or remove it after)
+7. **Check against the brief**: confirm every part of the brief is actually answered, and that every "none" or "all" completeness claim in the result states what was searched
+8. **Rank findings**: order by severity (high, then medium, then low), each with the location and the suggested fix
+9. **Report**: a ranked list only; state clearly if nothing needs changing
 
 ## Process Flow
 
@@ -40,6 +43,9 @@ Read the change + surrounding code
         |
         v
 Correctness --> performance --> accessibility/quality
+        |
+        v
+Docs/leaks --> run checks locally --> check against the brief
         |
         v
 Rank findings by severity

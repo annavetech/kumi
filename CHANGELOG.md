@@ -16,6 +16,9 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - Fixed: `yui`'s own instructions told it not to verify a specialist's work; it now checks that a specialist's required steps were actually run and reported.
 - Added `hooks/inject_specialist_context.py`, a hook that delivers scoped project rules into a directly-dispatched specialist's prompt.
 - A specialist dispatch now requires a brief with `Goal:`, `Output format:`, `Where to look:`, and `Limits:`; an incomplete brief is denied back to the coordinator.
+- The five reviewer skills (`mart`, `ivo`, `tiiu`, `aki`, `ryo`) now also check every changed file, not just source, for a leaked internal path or working-state detail.
+- The same five reviewer skills now also require actually running the project's own lint, test, and build commands locally, instead of a read-through opinion.
+- The same five reviewer skills now also check the result against the brief, confirming every part is answered and that any completeness claim states what was searched.
 
 ## [1.2.0] - 2026-09-21
 
