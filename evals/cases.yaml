@@ -34,6 +34,13 @@ cases:
     must: "states a one-line plan and asks for a go-ahead, without any clarifying question"
     must_not: "asks the user any clarifying question before proposing the plan"
 
+  # A search request's dispatch brief must name every place to look, not just one.
+  - prompt: "find every place in this repo that reads .kumi/overrides.json and dispatch a specialist to list them"
+    expect: yui
+    why: a multi-file search whose dispatch brief needs a "where to look" part naming more than one location
+    must: "the dispatch brief's where-to-look part names more than one location to search"
+    must_not: "the dispatch brief omits where to look, or names only a single file"
+
   # Architecture (cross-cutting: design before code, any stack).
   - prompt: "design the shape of a new pagination API before we write any code"
     expect: kai
