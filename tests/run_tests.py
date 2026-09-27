@@ -230,9 +230,14 @@ def test_build_agents_check_catches_house_rules_drift():
         drifted = os.path.join(tmp_root, "config", "house_rules.md")
         with open(drifted, "a", encoding="utf-8") as f:
             f.write("- A brand-new rule not yet baked into agents/.\n")
+        # Untraced: this script is a tmp copy deleted below, so coverage data
+        # pointing at it would break "coverage report" after the temp dir is gone.
+        env = dict(os.environ)
+        env.pop("COVERAGE_PROCESS_START", None)
+        env.pop("COVERAGE_PROCESS_CONFIG", None)
         r = subprocess.run(
             [sys.executable, os.path.join(tmp_root, "scripts", "build_agents.py"), "--check"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, env=env,
         )
         name = "build_agents.py --check catches house_rules.md drift"
         if r.returncode == 1 and "out of date" in r.stdout:
