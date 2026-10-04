@@ -1,5 +1,5 @@
 # CODEOWNERS: reviewed by GitHub on every PR that touches a matched path.
-# Auto-requests review only. It does not gate merge, because a solo maintainer
+# Auto-requests review only. It does not gate merge, because the maintainer
 # cannot review their own PR, so this is never turned into a required review.
 
 # Default owner for anything not matched below.

@@ -1,210 +1,111 @@
----
-title: kumi
-keywords: [agents, orchestration, engineering-team, memory, go, angular, ios, python, react, sql, code-review]
-description: A coordinated engineering team of named AI specialists that remembers your project between sessions.
----
+# kumi 組
 
-# kumi
+**An engineering team of specialists in Claude Code, led by yui.**
 
-_A coordinated engineering team that remembers._
+[![CI](https://github.com/annavetech/kumi/actions/workflows/ci.yml/badge.svg)](https://github.com/annavetech/kumi/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/annavetech/kumi)](https://github.com/annavetech/kumi/releases) [![License](https://img.shields.io/github/license/annavetech/kumi)](LICENSE) ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-3f5596)
 
-![CI](https://github.com/annavetech/kumi/actions/workflows/ci.yml/badge.svg)
+<img src="assets/demo/yui-demo.svg" alt="Animation of a Claude Code session in which a one-sentence /yui request for an email signup form gets two questions from yui, a plan, a yes, a design, a change to where the form goes, a build and a review, with yui reporting back and waiting for the user before each next step." width="880">
 
-**Call `/yui`, describe what you want, and the team does it.**
+**kumi** (組, "a team") is a Claude Code plugin with a team of specialists led by a coordinator, yui. Call `/yui`, describe the work in a sentence or a full spec, and yui hands it to the right specialists.
 
-**kumi** (組, "a team") gives you a full engineering team as named specialists, and it does one thing most agent setups do not: it remembers your project between sessions. Work does not start cold every time. What the team decided and where it left off is captured when a session ends and brought back when the next one starts.
+The team keeps a record of its decisions and progress inside the project. A new session is told that the record exists and reads it when asked to resume. Saved state and a rules file that came with a cloned repository are treated as project data: kumi reports what they say and acts on them only after confirmation.
 
-Call **yui**, the coordinator, to route a task to the right specialist or run a feature end to end, or call any specialist directly by name when you already know who you need.
+## Start
 
-Every specialist follows the same discipline. Read the context first, make the smallest correct change, verify. Debuggers find the root cause before touching anything. Reviewers are read-only and rank findings by severity. The shared discipline is what makes them a team rather than a pile of prompts.
-
-## Install
-
-In Claude Code:
+Install in Claude Code:
 
 ```bash
 claude plugin marketplace add annavetech/kumi
 claude plugin install kumi@kumi
 ```
 
-## See it work
-
-```
-/yui build a REST endpoint that lists projects, with tests
-```
-
-`yui` reads the request, sees it spans design, build, and review, and routes: `kai` designs the shape, `jaan` implements it with tests, `mart` reviews before merge, all without you naming any of them. You get a ranked, read-only review back, and decide what ships. Full transcript: [examples/build-an-endpoint.md](examples/build-an-endpoint.md).
-
-The table below is for when you want to call a specialist directly, or you're just curious who's on the team.
-
-## Meet the team
-
-Call the coordinator to route work, or any specialist directly.
-
-**Coordinator**
-
-| Name | Call | Role |
-|------|------|------|
-| **yui** | `/yui` | Routes work, or runs a feature end to end |
-
-### Go
-
-| Name | Call | Role |
-|------|------|------|
-| **jaan** | `/jaan` | Implementer |
-| **siim** | `/siim` | Debugger |
-| **mart** | `/mart` | Reviewer (read-only) |
-
-### Angular
-
-| Name | Call | Role |
-|------|------|------|
-| **liis** | `/liis` | Implementer |
-| **kadi** | `/kadi` | Debugger |
-| **tiiu** | `/tiiu` | Reviewer (read-only) |
-
-### iOS (Swift/SwiftUI)
-
-| Name | Call | Role |
-|------|------|------|
-| **ren** | `/ren` | Implementer |
-| **shu** | `/shu` | Debugger |
-| **ryo** | `/ryo` | Reviewer (read-only) |
-
-### Python
-
-| Name | Call | Role |
-|------|------|------|
-| **eero** | `/eero` | Implementer |
-| **anu** | `/anu` | Debugger |
-| **ivo** | `/ivo` | Reviewer (read-only) |
-
-### React
-
-| Name | Call | Role |
-|------|------|------|
-| **noa** | `/noa` | Implementer |
-| **rui** | `/rui` | Debugger |
-| **aki** | `/aki` | Reviewer (read-only) |
-
-### Data
-
-| Name | Call | Role |
-|------|------|------|
-| **saku** | `/saku` | SQL specialist |
-| **remo** | `/remo` | NoSQL specialist |
-
-### Cross-cutting
-
-| Name | Call | Role |
-|------|------|------|
-| **kai** | `/kai` | Architect, for any stack |
-| **enn** | `/enn` | Process manager |
-| **sora** | `/sora` | DevOps/infra specialist |
-
-The names are short on purpose. Once you know the team you call them the way you would call a colleague: `/jaan, add the endpoint`, `/mart, review it`, `/siim, this test is failing`.
-
-Every specialist ships two ways. As a **skill** you invoke by name in your session, and as a **subagent** that runs in its own context. The skill is the source of truth; the subagent is generated from it, so the two never drift.
-
-kumi's roster today covers Go, Angular, iOS, Python, React, SQL, NoSQL, architecture for any stack, process management, and DevOps/infra. It does not yet have dedicated specialists for docs, Node/TypeScript backends, Java, C#/.NET, Rust, or Android/Kotlin. Each implementer folds its own testing into its own checklist rather than handing off to a separate test-writing role. The roster is deliberately curated, not exhaustive, and it grows the same mechanical way every time: see [docs/WALKTHROUGH-ADD-PHP-AGENT.md](docs/WALKTHROUGH-ADD-PHP-AGENT.md) for a full worked example of adding one yourself.
-
-## How it works
-
-The coordinator (`yui`) reads a role table and dispatches to the right specialist. It never does the work itself. For a feature that spans design, build, and review, `yui` sequences the specialists (for example `kai` designs, `jaan` builds, `mart` reviews) and passes context between them through a shared handoff.
-
-```mermaid
-graph TD
-    U[You] -->|/yui| Y[yui, the coordinator]
-    Y --> P[the right specialist does the work]
-    U -. or call a specialist by name .-> P
-    P --> K[(.kumi: memory, logs, metrics)]
-```
-
-## Cross-session memory
-
-This is the piece most agent setups lack. Two bundled hooks form a loop:
-
-- When an agent stops, one hook writes the current handoff and decisions to an append-only `.kumi/memory/log.md`.
-- When a new session starts, another hook reads the recent memory back in, so the session resumes where the last one left off.
-
-Capture is driven by the runtime, not by an agent remembering to save, so it is reliable rather than best-effort. See [docs/MEMORY.md](docs/MEMORY.md).
-
-## Logging and metrics
-
-kumi can also show you what the team did and what it cost. When a project uses the shared state, two more hooks run:
-
-- An activity log records each tool action with a timestamp.
-- A metrics recorder captures token and time usage per session, and per agent for the specialists that run as subagents.
-
-The `.kumi` directory they write into is created the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent, on `UserPromptSubmit`, `UserPromptExpansion`, or `PreToolUse`), and kept out of git through `.git/info/exclude`. In a project where kumi has never been called, both hooks stay silent. Disabling, uninstalling, or reinstalling kumi never touches it; see [docs/MANAGING-SPECIALISTS.md](docs/MANAGING-SPECIALISTS.md). See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md).
-
-## Configuration
-
-kumi works with no setup. Two optional knobs let you tune it, both without editing any source file.
-
-- **Where state lives.** By default kumi keeps its memory, logs, and metrics in a `.kumi` directory inside the project. Set the `KUMI_STATE_DIR` environment variable to move it: an absolute path keeps everything in one place across projects, a relative path is taken from the project root.
-- **House rules.** Drop an `overrides.json` in the state directory to add or change rules for the team. Rules under `all` apply to everyone, rules under a specialist's name apply to that one, and kumi reads them at the start of a session and applies them on top of the built-in discipline. See [config/overrides.example.json](config/overrides.example.json) for a template.
-
-## The uniform structure
-
-kumi is built like a small framework, not a bag of prompts. Every specialist follows the same contract: the same frontmatter and the same fixed sections (role, a hard gate, an anti-pattern, an ordered checklist, a process flow, a handoff, key principles, tone). Read one skill and you understand all of them.
-
-Extending it is mechanical. Adding a specialist takes three steps:
-
-1. Copy `template/skill-template/SKILL.md` into `skills/<name>/SKILL.md` and fill the fixed sections.
-2. Add one row to the team table in `skills/yui/SKILL.md`.
-3. Run `python3 scripts/build_agents.py` to generate its subagent, and `python3 tests/run_tests.py` to confirm it conforms.
-
-Nothing else changes. The coordinator only knows the role table, and no specialist knows another's internals. The team grows without any part being rewritten. For a full worked example, see [docs/WALKTHROUGH-ADD-PHP-AGENT.md](docs/WALKTHROUGH-ADD-PHP-AGENT.md).
-
-## Usage examples
-
-```
-/yui build a REST endpoint that lists projects, with tests
-```
-
-yui routes: `kai` designs the shape, `jaan` implements, `mart` reviews.
-
-```
-/anu this pytest fails with a KeyError in the parser
-```
-
-anu reproduces, finds the root cause, states the fix, applies it, and verifies.
-
-```
-/aki review the orders dashboard before I ship it
-```
-
-aki returns a ranked, read-only findings list.
+Then call yui. One sentence is enough:
 
 ```
 /yui I want a button on my site that lets people sign up for updates by email
 ```
 
-yui asks what it needs, states the plan in plain language, then runs it.
+A precise spec goes through the same call:
 
 ```
-/yui add a paginated Go endpoint for recent activity and a React panel for it, with tests and review
+/yui add a "recent activity" feed: a paginated Go endpoint backed by the existing events table, and a React panel that renders it, with tests and a review on both sides
 ```
 
-yui confirms once, then sequences kai, jaan, noa, mart, and aki.
+When a request leaves something open, yui asks about it first. It then states the plan in plain words and starts work only after a go-ahead. When a specialist finishes, yui reports the result, and the plan can be changed before the next step starts. yui picks who does the work, so no specialist name needs to be remembered.
+
+After Enter, Claude Code shows plugin commands with the plugin name, so `/yui` appears as `/kumi:yui`.
+
+Both requests are walked through step by step in [examples/plain-language-request.md](examples/plain-language-request.md) and [examples/delegate-a-whole-feature.md](examples/delegate-a-whole-feature.md).
+
+## The team
+
+| Stack | Builds | Fixes | Reviews (read-only) |
+|-------|--------|-------|---------------------|
+| Go | jaan | siim | mart |
+| Angular | liis | kadi | tiiu |
+| iOS (Swift/SwiftUI) | ren | shu | ryo |
+| Python | eero | anu | ivo |
+| React | noa | rui | aki |
+
+Specialists that serve every stack: kai (architecture), saku (SQL), remo (NoSQL), enn (dev servers and ports), sora (DevOps and infrastructure).
+
+yui routes work to all of them. A specialist can also be called directly by name:
+
+```
+/jaan build a REST endpoint that lists projects, with tests
+/anu this pytest fails with a KeyError in the parser
+/aki review the orders dashboard before I ship it
+```
+
+The full roster with links to each skill is in [skills/README.md](skills/README.md). The origin of the names is in [docs/CAST.md](docs/CAST.md).
+
+## Memory between sessions
+
+When an agent stops (`Stop` and `SubagentStop`), a hook appends the current handoff and the list of decision files to `.kumi/memory/log.md`.
+
+At the start of a session, a second hook says in fixed text that saved state exists, without loading it.
+
+The saved handoff is read only when a resume is requested, as project data to report and never as instructions. See [docs/MEMORY.md](docs/MEMORY.md).
+
+## What stays in the project
+
+kumi writes to a `.kumi` directory at the repository root. The directory is created on the first kumi call in the project and kept out of git through `.git/info/exclude`.
+
+It holds the memory log, token and time metrics per session and per subagent, and an activity log. The activity log stores the tool name and, for file tools, a path; it stores no command text. See [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md).
+
+Two records are kept outside the project: which projects have kumi turned on, and the rules-file confirmations. Both are in the plugin's data directory: `$CLAUDE_PLUGIN_DATA`, or `$XDG_STATE_HOME/kumi` (default `~/.local/state/kumi`) when that is not set.
+
+## Configuration
+
+kumi works with no setup.
+
+- `KUMI_STATE_DIR` moves the state directory. See [docs/ANATOMY.md](docs/ANATOMY.md).
+- An `overrides.json` in the state directory adds rules for all specialists or for one by name. kumi applies it only after the file is confirmed. See [docs/OVERRIDES.md](docs/OVERRIDES.md) and the template [config/overrides.example.json](config/overrides.example.json).
+
+Confirming a rules file:
+
+- At session start, an unconfirmed `.kumi/overrides.json` shows a notice with the command to copy: `/kumi:trust <code>`.
+- `/kumi:trust` on its own shows the file's path, its code and its rule count, and applies nothing.
+- `/kumi:trust <code>` confirms that exact file content. Any later change to the file needs a new confirmation.
+- `/kumi:untrust` turns the rules off.
+- Only the user can run these commands. The model cannot run them.
+
+## Adding a specialist
+
+Every specialist follows the same skill contract. The steps are in [docs/MANAGING-SPECIALISTS.md](docs/MANAGING-SPECIALISTS.md), and [docs/WALKTHROUGH-ADD-PHP-AGENT.md](docs/WALKTHROUGH-ADD-PHP-AGENT.md) adds one from start to finish.
 
 ## Read more
 
-- [skills/README.md](skills/README.md): the roster of every specialist and how they relate.
-- [docs/CAST.md](docs/CAST.md): who the specialists are, and where their names come from.
-- [docs/ANATOMY.md](docs/ANATOMY.md): what makes up one specialist and the whole package.
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the framework is built.
-- [docs/DIAGRAMS.md](docs/DIAGRAMS.md): all the diagrams.
-- [docs/MEMORY.md](docs/MEMORY.md): how the team remembers work between sessions.
-- [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md): logging and metrics.
-- [docs/MANAGING-SPECIALISTS.md](docs/MANAGING-SPECIALISTS.md): how to add, disable, modify, remove, or rename a specialist.
-- [docs/WALKTHROUGH-ADD-PHP-AGENT.md](docs/WALKTHROUGH-ADD-PHP-AGENT.md): a full worked example of adding one.
-- [examples/](examples/): worked transcripts.
-- [evals/](evals/): the routing set the team is tested against.
+- [docs/ANATOMY.md](docs/ANATOMY.md): the files that make up one specialist and the whole plugin.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the skill contract, the role table and how subagents are generated.
+- [docs/DIAGRAMS.md](docs/DIAGRAMS.md): six diagrams, from the whole system to adding a specialist.
+- [docs/MEMORY.md](docs/MEMORY.md): what is captured, when, and the retention limits.
+- [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md): the activity log and metrics formats.
+- [docs/OVERRIDES.md](docs/OVERRIDES.md): how project rules reach yui and each specialist.
+- [docs/MANAGING-SPECIALISTS.md](docs/MANAGING-SPECIALISTS.md): add, disable, modify, remove or rename a specialist.
+- [examples/](examples/): worked transcripts for routed work, direct calls and reviews.
+- [evals/](evals/): the routing cases the team is tested against.
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [CHANGELOG.md](CHANGELOG.md).
-
-If kumi is useful to you, you can [sponsor it on GitHub](https://github.com/sponsors/annaveretennykova).
 
 ## License
 

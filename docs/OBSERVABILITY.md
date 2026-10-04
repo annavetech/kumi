@@ -1,6 +1,6 @@
 # Logging and metrics
 
-kumi can show you what the team did in a project and what it cost. Two hooks handle this, writing into the `.kumi` directory that is created the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent). In a project where kumi was never called, both stay silent and write nothing.
+kumi can show you what the team did in a project and what it cost. Two hooks handle this, writing into the `.kumi` directory that is created the first time kumi is called in a project (a `/kumi:` command, a kumi skill, or a kumi subagent). In a project where kumi was never called, both stay silent and write nothing. The `.kumi` directory is written to only after kumi is called in the project; a `.kumi` that came with a repository is not written to until then.
 
 ## Activity log
 
@@ -10,7 +10,9 @@ A `PostToolUse` hook (`hooks/log_activity.py`) appends one line per tool action 
 2026-09-13 12:32:49	abc12345	Edit	/path/to/file.go
 ```
 
-Each line has the time, a short session id, the tool, and a short target (the file, command, or query it acted on). This is the record of what happened, in order.
+Each line has the time, a short session id, the tool, and, for file tools (Read, Write, Edit, MultiEdit, NotebookEdit, Grep, Glob, LS), the file or directory path. Commands, URLs, search patterns, and queries are never stored. Control characters in a path are written as visible escapes, so one action is always one line. This is the record of what happened, in order.
+
+Logs written by kumi 1.3.0 and earlier may hold command prefixes. kumi 1.4.0 removes them from a project's log on the first kumi call there. Delete `logs/activity.log` in any project kumi will not be called in again.
 
 A note on attribution. When a specialist runs as a **skill**, it runs inside the main session, and the runtime does not tell a hook which skill is active. So the activity log is session-level, not per-skill. When a specialist runs as a **subagent**, its work is separated, and the metrics below attribute token and time usage to it by name.
 
@@ -44,7 +46,7 @@ The token numbers and timestamps are read defensively. Transcript shapes vary be
 
 ## It never gets in the way
 
-Both hooks always exit cleanly and never raise, even on malformed input. An observability hook that could fail the agent it is watching would not be worth having. Before the first kumi call in a project creates the `.kumi` directory, both hooks find nothing to write into and do nothing.
+Both hooks always exit cleanly and never raise, even on malformed input. An observability hook that could fail the agent it is watching would not be worth having. Before the first kumi call in a project creates the `.kumi` directory, both hooks find nothing to write into and do nothing. The hooks refuse symbolic links inside the state directory.
 
 ## Where the file names come from
 

@@ -30,6 +30,18 @@ jobs:
           coverage combine
           coverage report --rcfile=.coveragerc --fail-under=60
 
+  # Runs the suite on the oldest supported Python, without coverage.
+  # Pinned to ubuntu-24.04: setup-python has no 3.9 build for Ubuntu 26.04.
+  test-python-3-9:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.9"
+      - name: Run the kumi test suite on Python 3.9
+        run: python3 tests/run_tests.py
+
   lint-python:
     runs-on: ubuntu-latest
     steps:

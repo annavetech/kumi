@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """kumi specialist-dispatch hook (PreToolUse, matcher Agent|Task).
-Denies a brief missing a required part; else appends matching overrides.json rules to the prompt."""
+Denies a brief missing a required part; else appends the rules the user confirmed to the prompt."""
 
 import json
 import re
@@ -114,11 +114,11 @@ def specialist_rule_lines(overrides, specialist):
     return lines
 
 
-def updated_input_with_rules(tool_input, lines):
+def updated_input_with_rules(tool_input, lines, path):
     """Return tool_input with the project rules appended to prompt; every other field unchanged."""
     context = (
-        "Project rules for this dispatch, from .kumi/overrides.json. Follow these on top "
-        "of the built-in discipline:\n\n" + "\n".join(lines)
+        f"Project rules the user confirmed ({path}). Follow these on top of the built-in "
+        "discipline:\n\n" + "\n".join(lines)
     )
     updated = dict(tool_input)
     prompt = updated.get("prompt", "")
@@ -156,14 +156,18 @@ def main():
             return 0
 
         cfg = kumi_state.load()
-        project = kumi_state.project_dir(payload)
-        kumi = kumi_state.state_dir(project, cfg)
-        overrides = kumi_state.load_overrides(kumi, cfg)
+        anchor = kumi_state.resolve_anchor(kumi_state.project_dir(payload), cfg)
+        root = kumi_state.open_state_root(anchor, cfg)
+        if root is None:
+            return 0
+        with root:
+            overrides = kumi_state.load_trusted_overrides(root, cfg)
+            path = kumi_state.clean_field(kumi_state.overrides_path(root, cfg), 1024)
         lines = specialist_rule_lines(overrides, specialist)
         if not lines:
             return 0
 
-        emit_updated_input(updated_input_with_rules(tool_input, lines))
+        emit_updated_input(updated_input_with_rules(tool_input, lines, path))
         return 0
     except Exception:
         return 0

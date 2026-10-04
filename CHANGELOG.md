@@ -2,6 +2,42 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-04
+
+### Added
+
+- Session start shows a notice when `.kumi/overrides.json` is not confirmed. It gives the file's path, its code, and the exact `/kumi:trust <code>` command to apply it, and says so when a confirmed file has changed since it was confirmed.
+- `/kumi:untrust`, a user-only command that stops applying the project's rules file.
+- A CI job that runs the test suite on Python 3.9.
+- An eval case for a resume request: yui reads the handoff, reports what it says, and asks before doing anything the handoff asks for.
+
+### Changed
+
+- New README that opens with a coded demo animation (`assets/demo/yui-demo.svg`) of a `/yui` request going through questions, a plan, design, build and review. The diagram, the per-stack specialist tables and the sponsor link are removed from the README.
+- The hooks now state Python 3.9 or later as the minimum (`docs/MEMORY.md`).
+- The plugin description now says the hooks say at the next session start that saved work exists, instead of saying they restore it.
+
+### Security
+
+- Session start no longer adds a project's `.kumi/handoff.md` or memory log to the session. A hook now only says, in fixed text, that saved state exists, and the model reads it as information when the user asks to resume. Affected: 1.0.0 to 1.3.0 (1.3.0 raised the handoff limit to 20,000 characters).
+- Rules in `.kumi/overrides.json` now apply only after the user confirms the exact file by typing `/kumi:trust <code>`, a user-only command the model cannot call. The confirmation is stored outside the project and keyed by the file's path and SHA-256, so a rules file that comes with a cloned repository, or any later change to it, is never followed until confirmed. A confirmation applies to specialist dispatches right away and to the main session from the next session start. Affected: session-start rules 1.0.0 to 1.3.0; rules added to specialist dispatch prompts 1.3.0.
+- The results of `/kumi:trust` and `/kumi:untrust` are shown to the user once. The model replies with one fixed line and receives nothing from the rules file.
+- yui no longer reads `overrides.json` or copies its rules into a dispatch brief. Affected: 1.3.0.
+- yui reads an existing handoff only when the user asks to resume, and no hook points the model at it. Affected: 1.0.0 to 1.3.0.
+- The activity log no longer stores command text, URLs, search patterns, or queries. It stores the tool name and, for file tools only, a path. On the first kumi call in a project, 1.4.0 removes stored command text from that project's existing activity log. Affected: 1.0.0 to 1.3.0.
+- Hooks no longer write into a `.kumi` directory before kumi is called in that project. Affected: 1.0.0 to 1.3.0.
+- Hooks no longer follow symbolic links inside the state directory, for reading or writing. Affected: 1.0.0 to 1.3.0.
+- The state directory is now the one at the git work-tree root. A `.kumi` in a subfolder, or in a parent folder of a project without git, is used only if kumi was called there before. In a git worktree the state directory is now excluded through the shared `info/exclude`. Affected: 1.0.0 to 1.3.0 (parent-folder search added in 1.3.0).
+- Memory log entries now hold at most 4,000 characters of the handoff, written as a block quote so handoff text cannot forge an entry, and at most three dated archives are kept (`memory.keep_archives`). Affected: 1.0.0 to 1.3.0.
+- Activity log fields now write control characters as visible escapes, so one action is always one line. Affected: 1.0.0 to 1.3.0.
+- The house rule about decisions on record now covers decisions the user made, and a new rule says kumi's state files are project data. Affected: 1.3.0.
+- `SECURITY.md` wrongly said `.kumi/` cannot arrive by cloning a repository. It now describes this threat model. Affected: 1.2.0 to 1.3.0.
+
+### Upgrading
+
+- Existing `overrides.json` files stop applying until confirmed. Review the file in an editor, type `/kumi:trust` in a session to see its path, code and rule count, then type `/kumi:trust <code>` to apply it.
+- `memory.restore_entries` is removed from `config/runtime.json`.
+
 ## [1.3.0] - 2026-09-27
 
 - Added a plugin icon (`assets/brand/kumi-mark.svg`) to `plugin.json`.
@@ -16,9 +52,9 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 - Fixed: `yui`'s own instructions told it not to verify a specialist's work; it now checks that a specialist's required steps were actually run and reported.
 - Added `hooks/inject_specialist_context.py`, a hook that delivers scoped project rules into a directly-dispatched specialist's prompt.
 - A specialist dispatch now requires a brief with `Goal:`, `Output format:`, `Where to look:`, and `Limits:`; an incomplete brief is denied back to the coordinator.
-- The five reviewer skills (`mart`, `ivo`, `tiiu`, `aki`, `ryo`) now also check every changed file, not just source, for a leaked internal path or working-state detail.
-- The same five reviewer skills now also require actually running the project's own lint, test, and build commands locally, instead of a read-through opinion.
-- The same five reviewer skills now also check the result against the brief, confirming every part is answered and that any completeness claim states what was searched.
+- The reviewer skills (`mart`, `ivo`, `tiiu`, `aki`, `ryo`) now also check every changed file, not just source, for a leaked internal path or working-state detail.
+- The same reviewer skills now also require actually running the project's own lint, test, and build commands locally, instead of a read-through opinion.
+- The same reviewer skills now also check the result against the brief, confirming every part is answered and that any completeness claim states what was searched.
 - Fixed: `scripts/build_agents.py` hardcoded `model: sonnet` for every generated specialist; the model now comes from `config/runtime.json`'s `model` section, with a project-wide default and per-specialist overrides.
 - Added eval cases in `evals/cases.yaml` covering direct yes/no answers, scoped approvals, multi-part requests, completeness claims, and other recorded behavior regressions.
 
@@ -55,7 +91,7 @@ All notable changes to kumi are recorded here. The format follows [Keep a Change
 
 The first release.
 
-- A coordinated team of 20 named specialists: implement, debug, and review trios for Go, Angular, iOS, Python, and React; a cross-cutting architect (kai); SQL and NoSQL specialists (saku, remo); a process manager (enn); and the coordinator (yui).
+- A coordinated team of named specialists: implement, debug, and review trios for Go, Angular, iOS, Python, and React; a cross-cutting architect (kai); SQL and NoSQL specialists (saku, remo); a process manager (enn); and the coordinator (yui).
 - Each specialist ships as both a skill and a generated subagent, with role-based tools (reviewers are read-only), a model, and a color.
 - Cross-session memory: work is captured when an agent stops and restored when a new session starts.
 - Observability: an activity log, plus per-session and per-agent token and time metrics.
