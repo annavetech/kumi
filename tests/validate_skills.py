@@ -79,6 +79,24 @@ def check_skill(path, contract):
     return problems
 
 
+def check_command_skill(path, contract):
+    """Return a list of problem strings for one user-only command skill."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    fm, body = split_frontmatter(text)
+    if fm is None:
+        return ["missing YAML frontmatter"]
+    problems = [f"frontmatter missing '{key}'" for key in contract["frontmatter_required"]
+                if not re.search(rf"^{re.escape(key)}\s*:", fm, re.MULTILINE)]
+    if not re.search(r"^disable-model-invocation:\s*true\s*$", fm, re.MULTILINE):
+        problems.append("frontmatter missing 'disable-model-invocation: true'")
+    if re.search(r"^allowed-tools\s*:", fm, re.MULTILINE):
+        problems.append("frontmatter must not grant allowed-tools")
+    if "!`" in body or re.search(r"^\s*(?:```!|!)", body, re.MULTILINE):
+        problems.append("body must not run a shell line")
+    return problems
+
+
 def main():
     try:
         contract = load_contract(CONTRACT)
@@ -97,7 +115,10 @@ def main():
         if not os.path.isfile(skill_md):
             continue
         checked += 1
-        problems = check_skill(skill_md, contract)
+        if name in contract.get("command_skills", []):
+            problems = check_command_skill(skill_md, contract)
+        else:
+            problems = check_skill(skill_md, contract)
         if problems:
             failures += 1
             print(f"FAIL {name}")

@@ -36,7 +36,7 @@ Every specialist reads and writes through one convention under `.kumi/` in the w
 
 Because the format is identical for every role, any role can consume any other role's output. So the team behaves as a system, not a set of disconnected skills. It is optional for single-role tasks and used only for multi-step work.
 
-This state is also made durable. A bundled hook (`hooks/capture_memory.py`) fires on `Stop` and `SubagentStop` and appends the current handoff and decisions to an append-only `.kumi/memory/log.md`. Capture is driven by the runtime, not by a specialist remembering to save, so it is guaranteed rather than best-effort. See [MEMORY.md](MEMORY.md).
+This state is also made durable. A bundled hook (`hooks/capture_memory.py`) fires on `Stop` and `SubagentStop` and appends the decision file names and a capped, block-quoted copy of the handoff to `.kumi/memory/log.md`, keeping a bounded number of dated archives. Capture is driven by the runtime, not by a specialist remembering to save, so it is guaranteed rather than best-effort. See [MEMORY.md](MEMORY.md).
 
 ### 4. The extension mechanism
 
@@ -54,8 +54,8 @@ Each specialist ships two ways. As a skill it runs inside the session you invoke
 
 The shared state is also made durable and observable through bundled hooks, driven by the runtime rather than by any specialist remembering to act:
 
-- Memory is a loop. A `Stop`/`SubagentStop` hook captures finished work to `.kumi/memory/log.md`; a `SessionStart` hook restores the recent entries into a new session, so work resumes instead of starting cold. See [MEMORY.md](MEMORY.md).
-- Observability is opt-in by the presence of `.kumi/`. A `PostToolUse` hook logs each tool action, and a `Stop`/`SubagentStop` hook records token and time usage per session and per agent. See [OBSERVABILITY.md](OBSERVABILITY.md).
+- Memory is a loop. A `Stop`/`SubagentStop` hook captures finished work to `.kumi/memory/log.md`; a `SessionStart` hook says that saved state exists, without loading it, so work can resume when the user asks. See [MEMORY.md](MEMORY.md).
+- Observability is opt-in by calling kumi in the project. A `PostToolUse` hook logs each tool action, and a `Stop`/`SubagentStop` hook records token and time usage per session and per agent. See [OBSERVABILITY.md](OBSERVABILITY.md).
 
 The names of all these files live in `config/runtime.json`, so the layout is data, not code.
 

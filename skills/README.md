@@ -1,6 +1,6 @@
 # The specialists
 
-This folder holds the team. Each subfolder is one specialist, defined by a single `SKILL.md` that follows the same contract as every other. This page is the roster: who they are, how they relate, and where to read each one.
+This folder holds the team. Each subfolder except `trust` and `untrust` is one specialist, defined by a single `SKILL.md` that follows the same contract as every other. This page is the roster: who they are, how they relate, and where to read each one.
 
 For the design behind the team, see [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md). For all the diagrams, see [../docs/DIAGRAMS.md](../docs/DIAGRAMS.md).
 
@@ -36,6 +36,8 @@ Call the coordinator to route work, or call any specialist directly by name. You
 | **enn**  | `/enn`  | Process manager | Starts, stops, and inspects dev servers and ports | [enn/SKILL.md](enn/SKILL.md) |
 | **sora** | `/sora` | DevOps/infra | Dockerfiles, CI/CD, and infrastructure as code, safe by default | [sora/SKILL.md](sora/SKILL.md) |
 
+The roster covers Go, Angular, iOS, Python, React, SQL, NoSQL, architecture for any stack, process management, and DevOps/infra. There are no dedicated specialists yet for docs, Node/TypeScript backends, Java, C#/.NET, Rust, or Android/Kotlin. Each implementer writes and runs the tests for its own change; there is no separate test-writing role. A new stack is added the same way every time, see [../docs/WALKTHROUGH-ADD-PHP-AGENT.md](../docs/WALKTHROUGH-ADD-PHP-AGENT.md).
+
 ## The three shapes
 
 Most specialists are one of three shapes, and they stay consistent within a shape across stacks. This is why the team reads as coherent instead of a pile of unrelated prompts.
@@ -51,6 +53,10 @@ Learn how `jaan` / `siim` / `mart` relate for Go, and you already know how each 
 ## How they work together
 
 For a single-role task, call the specialist directly. For a task that spans roles, `yui` sequences them and passes context through shared state under `.kumi/` in the working project. See [../docs/DIAGRAMS.md](../docs/DIAGRAMS.md) for the collaboration graph, the end-to-end sequence, and the shared-state data flow.
+
+## The two commands
+
+`trust` and `untrust` are not specialists. They are user-only commands, `/kumi:trust` and `/kumi:untrust`, that confirm or drop a project's `.kumi/overrides.json`. The model cannot call them, and they have no subagent version. See [../docs/OVERRIDES.md](../docs/OVERRIDES.md).
 
 ## Adding one
 

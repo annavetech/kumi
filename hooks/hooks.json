@@ -35,6 +35,12 @@
         "hooks": [
           { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
         ]
+      },
+      {
+        "matcher": "^kumi:(?:un)?trust$",
+        "hooks": [
+          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/confirm_overrides.py\"" }
+        ]
       }
     ],
     "PostToolUse": [

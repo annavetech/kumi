@@ -14,5 +14,7 @@
     "## Key Principles",
     "## Tone"
   ],
-  "sections_must_be_ordered": true
+  "sections_must_be_ordered": true,
+  "command_skills": ["trust", "untrust"],
+  "command_skills_note": "User-only commands, not specialists. They need name and description, disable-model-invocation: true, no allowed-tools, and no shell line; the specialist metadata, hard gate, and sections do not apply."
 }

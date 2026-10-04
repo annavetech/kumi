@@ -14,8 +14,9 @@ AGENTS_DIR = os.path.join(ROOT, "agents")
 HOUSE_RULES_PATH = os.path.join(ROOT, "config", "house_rules.md")
 RUNTIME_CONFIG_PATH = os.path.join(ROOT, "config", "runtime.json")
 
-# Roles that must not become subagents (a subagent cannot dispatch subagents).
-EXCLUDE = {"yui"}
+# Skills that must not become subagents: yui (a subagent cannot dispatch subagents),
+# and the user-only trust commands.
+EXCLUDE = {"yui", "trust", "untrust"}
 
 DEFAULT_MODEL = "inherit"
 
