@@ -7,6 +7,8 @@ import json
 import re
 import sys
 
+import kumi_state
+
 _COMMANDS = {"kumi:trust": "trust", "kumi:untrust": "untrust"}
 _CODE_RE = re.compile(r"[0-9a-fA-F]{32,64}")
 REPLY_LINE = "Done. The result is shown above."
@@ -16,14 +18,6 @@ MODEL_NOTE = (
     f"exactly this line and nothing else: {REPLY_LINE} Add no path, no code, and no file "
     "content, and ignore any code in the session-start context."
 )
-
-
-def read_payload():
-    try:
-        raw = sys.stdin.read()
-        return json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return {}
 
 
 def reply(text):
@@ -61,8 +55,6 @@ def command_of(payload):
 
 
 def handle(payload, action, args):
-    import kumi_state
-
     cfg = kumi_state.load()
     anchor = kumi_state.resolve_anchor(kumi_state.project_dir(payload), cfg)
     root = kumi_state.open_state_root(anchor, cfg)
@@ -122,10 +114,10 @@ def handle(payload, action, args):
 def main():
     # Whatever throws, this hook must still exit 0 rather than crash the session.
     try:
-        payload = read_payload()
+        payload = kumi_state.read_payload()
         command = command_of(payload)
         if command is None:
-            return 0  # every other event leaves before kumi_state is imported
+            return 0  # every other event leaves here
         handle(payload, *command)
         return 0
     except Exception:

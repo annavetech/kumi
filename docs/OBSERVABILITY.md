@@ -21,7 +21,9 @@ A note on attribution. When a specialist runs as a **skill**, it runs inside the
 A hook on `Stop` and `SubagentStop` (`hooks/record_metrics.py`) reads the finished run's transcript and records its token and time usage.
 
 - On `Stop` it records the whole session to `.kumi/metrics/sessions.jsonl`.
-- On `SubagentStop` it records that single subagent run to `.kumi/metrics/agents.jsonl`, tagged with the agent name when the transcript exposes it.
+- On `SubagentStop` it records that single subagent run to `.kumi/metrics/agents.jsonl`, tagged with the agent name from the hook payload's agent type.
+
+When Claude Code runs with `--agent` or the `agent` setting, its internal agents (prompt suggestions, `/btw`) report the session's agent name, so agent rows from such sessions can include those internal runs.
 
 Each record is one line in the file (JSONL). Expanded for readability, a record looks like:
 
@@ -42,7 +44,7 @@ Each record is one line in the file (JSONL). Expanded for readability, a record 
 
 Per-agent token and time metrics are possible only for subagents, because a subagent has its own transcript to measure and a skill does not. This is why kumi ships each specialist both ways: run it as a skill for a quick call, or as a subagent when you want its work measured on its own.
 
-The token numbers and timestamps are read defensively. Transcript shapes vary between versions, so any usage fields and timestamps found are summed and bracketed, and anything missing is left out rather than guessed.
+The token numbers and timestamps are read defensively. Transcript shapes vary between versions, so any usage fields and timestamps found are summed and bracketed, and anything missing is left out rather than guessed. A message written as several rows with the same message id is counted once, from its last row. The transcript is written asynchronously, so the hook waits up to 3 seconds for the run's final message to appear before it records the row. A run that ends in a handback tool call undercounts the output tokens of that last message, because its full usage is never written to the transcript.
 
 ## It never gets in the way
 

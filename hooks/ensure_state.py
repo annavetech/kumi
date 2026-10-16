@@ -2,19 +2,10 @@
 """kumi state-directory bootstrap hook (UserPromptSubmit, PreToolUse, UserPromptExpansion).
 Creates and enables the .kumi state directory the moment kumi is called. Never prints to stdout."""
 
-import json
 import os
 import sys
 
 import kumi_state
-
-
-def read_payload():
-    try:
-        raw = sys.stdin.read()
-        return json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return {}
 
 
 def is_kumi_call(payload):
@@ -176,7 +167,7 @@ def clean_activity_log(root, cfg):
 def main():
     # Whatever throws, this hook must still exit 0 rather than crash the session.
     try:
-        payload = read_payload()
+        payload = kumi_state.read_payload()
         if not is_kumi_call(payload):
             return 0
 
