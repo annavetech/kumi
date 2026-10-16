@@ -2,6 +2,32 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-16
+
+### Added
+
+- A CI job that runs `scripts/check_version.py`. It checks that the version in `plugin.json` matches the newest release in `CHANGELOG.md`, and the version in `marketplace.json` when that file sets one. On a tag push it also checks that the tag is `v<version>`.
+- Tests for the subagent metrics transcript, skipped internal agent runs, token counting per message, the wait for the final message, the stdin reader, hook timeouts, hook commands, and the version check.
+
+### Changed
+
+- Every hook in `hooks/hooks.json` has a 10 second timeout.
+- All hooks share one stdin reader that waits at most 3 seconds for input. A hook no longer hangs when its input never closes, and it treats empty or invalid input as no payload.
+- Hook commands read the plugin root from the `CLAUDE_PLUGIN_ROOT` environment variable inside Python, instead of from the command text. Hooks run Python in isolated mode (`-I`), so `PYTHON*` variables and modules in the project directory are not loaded.
+- The agent name in a metrics row comes only from the hook payload's agent type.
+- New kumi mark, lockup and brand images in `assets/brand/`.
+
+### Removed
+
+- `assets/brand/kumi-social-preview-1280x640.png`. The social preview is now `kumi-social-preview-2560x1280.png`.
+
+### Fixed
+
+- Per-agent metrics on `SubagentStop` now read the subagent's own transcript. Before, each agent row held the main session's tokens and time.
+- Claude Code internal agents that stop with an empty agent type no longer get an agent metrics row.
+- A message written to the transcript as several streamed rows is counted once, from its last row, so token totals no longer count it twice.
+- Metrics now include the run's final message. The transcript may not hold that message yet when the hook starts, so the hook waits up to 3 seconds for it.
+
 ## [1.4.0] - 2026-10-04
 
 ### Added

@@ -8,14 +8,6 @@ import sys
 import kumi_state
 
 
-def read_payload():
-    try:
-        raw = sys.stdin.read()
-        return json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return {}
-
-
 def rule_lines(rules):
     lines = []
     for key, texts in rules.items():
@@ -47,7 +39,7 @@ def notice(ov, shown, state):
 def main():
     # Whatever throws, this hook must still exit 0 rather than crash the session.
     try:
-        payload = read_payload()
+        payload = kumi_state.read_payload()
         cfg = kumi_state.load()
         anchor = kumi_state.resolve_anchor(kumi_state.project_dir(payload), cfg)
         root = kumi_state.open_state_root(anchor, cfg)

@@ -31,9 +31,11 @@ sys.path.insert(0, HOOKS_DIR)
 PLUGIN_DATA = tempfile.mkdtemp(prefix="kumi-test-data-")
 os.environ["CLAUDE_PLUGIN_DATA"] = PLUGIN_DATA
 os.environ.pop("XDG_STATE_HOME", None)
+os.environ.pop("KUMI_STATE_DIR", None)
 
 import capture_memory  # noqa: E402
 import chat_commands  # noqa: E402
+import check_version  # noqa: E402
 import kumi_state  # noqa: E402
 import strip_stale_approval  # noqa: E402
 from _github import report_if_error  # noqa: E402
@@ -1162,23 +1164,24 @@ SUBAGENT_TRANSCRIPT_LINES = [
     {
         "parentUuid": None,
         "isSidechain": True,
-        "agentId": "aaadd4043fa023033",
+        "agentId": "a0000000000000001",
         "type": "user",
         "message": {"role": "user", "content": "Task: review hello.py."},
-        "uuid": "66d1a116-7361-4963-916a-bca2f203b476",
-        "timestamp": "2026-09-21T11:44:05.578Z",
-        "cwd": "/private/tmp/kumi-memory-check",
-        "sessionId": "afe6c14e-5cb6-49d8-a8c9-3ad2aca8758c",
+        "uuid": "00000000-0000-4000-8000-000000000003",
+        "timestamp": "2026-01-01T10:00:05.000Z",
+        "cwd": "/tmp/project",
+        "sessionId": "00000000-0000-4000-8000-000000000001",
         "version": "2.1.278",
     },
     {
-        "parentUuid": "66d1a116-7361-4963-916a-bca2f203b476",
+        "parentUuid": "00000000-0000-4000-8000-000000000003",
         "isSidechain": True,
-        "agentId": "aaadd4043fa023033",
+        "agentId": "a0000000000000001",
         "type": "assistant",
         "message": {
             "role": "assistant",
             "content": "No findings.",
+            "stop_reason": "end_turn",
             "usage": {
                 "input_tokens": 14,
                 "output_tokens": 1290,
@@ -1186,10 +1189,10 @@ SUBAGENT_TRANSCRIPT_LINES = [
                 "cache_creation_input_tokens": 62535,
             },
         },
-        "uuid": "77e2b227-8472-5a74-a27d-cca3f214c587",
-        "timestamp": "2026-09-21T11:44:09.905Z",
-        "cwd": "/private/tmp/kumi-memory-check",
-        "sessionId": "afe6c14e-5cb6-49d8-a8c9-3ad2aca8758c",
+        "uuid": "00000000-0000-4000-8000-000000000004",
+        "timestamp": "2026-01-01T10:00:09.500Z",
+        "cwd": "/tmp/project",
+        "sessionId": "00000000-0000-4000-8000-000000000001",
         "version": "2.1.278",
     },
 ]
@@ -1210,7 +1213,7 @@ def test_record_metrics_subagent_agent_name():
     project = tempfile.mkdtemp()
     try:
         enable_project(project)
-        transcript_path = os.path.join(project, "agent-aaadd4043fa023033.jsonl")
+        transcript_path = os.path.join(project, "agent-a0000000000000001.jsonl")
         with open(transcript_path, "w", encoding="utf-8") as f:
             for line in SUBAGENT_TRANSCRIPT_LINES:
                 f.write(json.dumps(line) + "\n")
@@ -1218,10 +1221,10 @@ def test_record_metrics_subagent_agent_name():
         payload = {
             "hook_event_name": "SubagentStop",
             "stop_hook_active": False,
-            "agent_id": "aaadd4043fa023033",
+            "agent_id": "a0000000000000001",
             "agent_transcript_path": transcript_path,
             "agent_type": "kumi:ivo",
-            "session_id": "afe6c14e-5cb6-49d8-a8c9-3ad2aca8758c",
+            "session_id": "00000000-0000-4000-8000-000000000001",
             "transcript_path": transcript_path,
             "cwd": project,
         }
@@ -1245,6 +1248,394 @@ def test_record_metrics_subagent_agent_name():
             )
     finally:
         shutil.rmtree(project, ignore_errors=True)
+
+
+MAIN_TRANSCRIPT_LINES = [
+    {
+        "type": "user",
+        "message": {"role": "user", "content": "/kumi:yui review hello.py"},
+        "timestamp": "2026-09-21T11:43:00.000Z",
+    },
+    {
+        "type": "assistant",
+        "message": {
+            "role": "assistant",
+            "content": "Dispatching ivo.",
+            "stop_reason": "end_turn",
+            "usage": {
+                "input_tokens": 99,
+                "output_tokens": 999,
+                "cache_read_input_tokens": 9999,
+                "cache_creation_input_tokens": 99999,
+            },
+        },
+        "timestamp": "2026-09-21T11:44:00.000Z",
+    },
+]
+
+
+def test_record_metrics_subagent_reads_its_own_transcript():
+    # SubagentStop's transcript_path is the main session; the subagent's is agent_transcript_path.
+    project = tempfile.mkdtemp()
+    try:
+        enable_project(project)
+        main_path = os.path.join(project, "main.jsonl")
+        agent_path = os.path.join(project, "agent-a0000000000000001.jsonl")
+        for path, lines in ((main_path, MAIN_TRANSCRIPT_LINES),
+                            (agent_path, SUBAGENT_TRANSCRIPT_LINES)):
+            with open(path, "w", encoding="utf-8") as f:
+                for line in lines:
+                    f.write(json.dumps(line) + "\n")
+
+        payload = {
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": False,
+            "agent_id": "a0000000000000001",
+            "agent_transcript_path": agent_path,
+            "agent_type": "kumi:ivo",
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "transcript_path": main_path,
+            "cwd": project,
+        }
+        r = run_record_metrics(payload, proc_cwd=project)
+
+        agents_path = os.path.join(project, ".kumi", "metrics", "agents.jsonl")
+        records = []
+        if os.path.isfile(agents_path):
+            with open(agents_path, encoding="utf-8") as f:
+                records = [json.loads(line) for line in f if line.strip()]
+
+        expected = {
+            "when": "2026-01-01T10:00:09.500Z",
+            "duration_seconds": 4,
+            "tokens": SUBAGENT_TRANSCRIPT_LINES[1]["message"]["usage"],
+            "agent": "ivo",
+        }
+        got = records[0] if len(records) == 1 else {}
+        msg = "record_metrics on SubagentStop measures agent_transcript_path, not the main session"
+        if r.returncode == 0 and all(got.get(k) == v for k, v in expected.items()):
+            ok(msg)
+        else:
+            bad(msg, f"rc={r.returncode} records={records!r} stderr={r.stderr}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_record_metrics_skips_subagent_stop_without_agent_type():
+    # Claude Code's internal agents fire SubagentStop with an empty agent_type; no row for those.
+    project = tempfile.mkdtemp()
+    try:
+        enable_project(project)
+        agent_path = os.path.join(project, "agent-a0000000000000001.jsonl")
+        with open(agent_path, "w", encoding="utf-8") as f:
+            for line in SUBAGENT_TRANSCRIPT_LINES:
+                f.write(json.dumps(line) + "\n")
+
+        base = {
+            "hook_event_name": "SubagentStop",
+            "stop_hook_active": False,
+            "agent_id": "a0000000000000001",
+            "agent_transcript_path": agent_path,
+            "session_id": "00000000-0000-4000-8000-000000000001",
+            "transcript_path": agent_path,
+            "cwd": project,
+        }
+        rcs = [run_record_metrics(dict(base, agent_type=t), proc_cwd=project).returncode
+               for t in ("", "   ", "Explore", "kumi:")]
+        rcs.append(run_record_metrics(base, proc_cwd=project).returncode)
+
+        agents_path = os.path.join(project, ".kumi", "metrics", "agents.jsonl")
+        names = []
+        if os.path.isfile(agents_path):
+            with open(agents_path, encoding="utf-8") as f:
+                names = [json.loads(line).get("agent") for line in f if line.strip()]
+
+        msg = ("record_metrics writes no agent row for an empty agent_type, keeps non-kumi agents, "
+               "names a bare kumi: unknown")
+        if rcs == [0, 0, 0, 0, 0] and names == ["Explore", "unknown"]:
+            ok(msg)
+        else:
+            bad(msg, f"rcs={rcs} names={names!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def _assistant_row(ts, msg_id, stop_reason, usage, content=()):
+    keys = ("input_tokens", "output_tokens", "cache_read_input_tokens",
+            "cache_creation_input_tokens")
+    return {"type": "assistant", "timestamp": ts, "requestId": "req_" + msg_id[-6:],
+            "message": {"id": msg_id, "role": "assistant", "stop_reason": stop_reason,
+                        "content": list(content), "usage": dict(zip(keys, usage))}}
+
+
+def _user_row(ts, content, **extra):
+    return dict({"type": "user", "timestamp": ts, "isSidechain": False,
+                 "message": {"role": "user", "content": content}}, **extra)
+
+
+# Shape of a Claude Code 2.1.301 subagent transcript: one streamed message is split
+# into a thinking row (partial usage) and a tool_use row (final usage) with the same id.
+LIVE_SUBAGENT_LINES = [
+    {"type": "user", "timestamp": "2026-01-01T09:00:00.000Z"},
+    _assistant_row("2026-01-01T09:00:05.100Z", "msg_fixture0000000000000001", "tool_use",
+                   (2, 136, 0, 6684)),
+    {"type": "user", "timestamp": "2026-01-01T09:00:05.200Z"},
+    _assistant_row("2026-01-01T09:00:10.000Z", "msg_fixture0000000000000002", None,
+                   (2, 3, 6684, 1048)),
+    _assistant_row("2026-01-01T09:00:10.300Z", "msg_fixture0000000000000002", "tool_use",
+                   (2, 156, 6684, 1048)),
+    {"type": "user", "timestamp": "2026-01-01T09:00:10.400Z"},
+    {"type": "api-request", "timestamp": "2026-01-01T09:00:10.500Z"},
+    _assistant_row("2026-01-01T09:00:16.700Z", "msg_fixture0000000000000003", "end_turn",
+                   (2, 196, 7732, 234)),
+]
+LIVE_SUBAGENT_TOKENS = {"input_tokens": 6, "output_tokens": 488,
+                        "cache_read_input_tokens": 14416, "cache_creation_input_tokens": 7966}
+
+
+def _live_subagent_payload(project, agent_path):
+    return {"hook_event_name": "SubagentStop", "stop_hook_active": False,
+            "agent_id": "a0000000000000002", "agent_type": "kumi:ivo",
+            "agent_transcript_path": agent_path, "transcript_path": agent_path,
+            "session_id": "00000000-0000-4000-8000-000000000002", "cwd": project}
+
+
+def _agent_rows(project):
+    path = os.path.join(project, ".kumi", "metrics", "agents.jsonl")
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def test_record_metrics_counts_each_message_id_once():
+    # A streamed message written as several rows with one id must count only its last usage.
+    project = tempfile.mkdtemp()
+    try:
+        enable_project(project)
+        agent_path = os.path.join(project, "agent-a0000000000000002.jsonl")
+        with open(agent_path, "w", encoding="utf-8") as f:
+            for line in LIVE_SUBAGENT_LINES:
+                f.write(json.dumps(line) + "\n")
+        r = run_record_metrics(_live_subagent_payload(project, agent_path), proc_cwd=project)
+        rows = _agent_rows(project)
+        msg = "record_metrics counts one usage per message id (6/488/14416/7966)"
+        if r.returncode == 0 and len(rows) == 1 and rows[0].get("tokens") == LIVE_SUBAGENT_TOKENS:
+            ok(msg)
+        else:
+            bad(msg, f"rc={r.returncode} rows={rows!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_record_metrics_waits_for_the_final_message():
+    # The final message row can land after the hook starts; the row must still include it.
+    project = tempfile.mkdtemp()
+    try:
+        enable_project(project)
+        agent_path = os.path.join(project, "agent-a0000000000000002.jsonl")
+        with open(agent_path, "w", encoding="utf-8") as f:
+            for line in LIVE_SUBAGENT_LINES[:-1]:
+                f.write(json.dumps(line) + "\n")
+        proc = subprocess.Popen(
+            [sys.executable, os.path.join(ROOT, "hooks", "record_metrics.py")],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, cwd=project,
+        )
+        proc.stdin.write(json.dumps(_live_subagent_payload(project, agent_path)))
+        proc.stdin.close()
+        time.sleep(0.5)
+        with open(agent_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(LIVE_SUBAGENT_LINES[-1]) + "\n")
+        rc = proc.wait(timeout=15)
+        proc.stdout.close()
+        proc.stderr.close()
+        rows = _agent_rows(project)
+        got = rows[0] if len(rows) == 1 else {}
+        msg = "record_metrics waits for a final message written after the hook started"
+        if (rc == 0 and got.get("tokens") == LIVE_SUBAGENT_TOKENS
+                and got.get("when") == "2026-01-01T09:00:16.700Z"
+                and got.get("duration_seconds") == 16):
+            ok(msg)
+        else:
+            bad(msg, f"rc={rc} rows={rows!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_record_metrics_wait_is_bounded():
+    # With no final message ever written, the hook still records what it has, inside its timeout.
+    project = tempfile.mkdtemp()
+    try:
+        enable_project(project)
+        agent_path = os.path.join(project, "agent-a0000000000000002.jsonl")
+        with open(agent_path, "w", encoding="utf-8") as f:
+            for line in LIVE_SUBAGENT_LINES[:-1]:
+                f.write(json.dumps(line) + "\n")
+        start = time.monotonic()
+        r = run_record_metrics(_live_subagent_payload(project, agent_path), proc_cwd=project)
+        elapsed = time.monotonic() - start
+        rows = _agent_rows(project)
+        partial = {"input_tokens": 4, "output_tokens": 292,
+                   "cache_read_input_tokens": 6684, "cache_creation_input_tokens": 7732}
+        msg = "record_metrics stops waiting well inside the 10 s hook timeout"
+        if r.returncode == 0 and elapsed < 6 and len(rows) == 1 and rows[0]["tokens"] == partial:
+            ok(msg)
+        else:
+            bad(msg, f"rc={r.returncode} elapsed={elapsed:.2f} rows={rows!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+# Row shapes from Claude Code 2.1.301 transcripts.
+HANDBACK_LINES = [
+    _user_row("2026-10-16T10:00:00.000Z", "Task: review hello.py."),
+    _assistant_row("2026-10-16T10:00:05.000Z", "msg_handback000001", None, (3, 40, 900, 20),
+                   [{"type": "tool_use", "id": "toolu_01HB", "name": "SubagentHandback",
+                     "input": {"message": "No findings."}}]),
+    _user_row("2026-10-16T10:00:05.100Z",
+              [{"type": "tool_result", "tool_use_id": "toolu_01HB", "content": "Delivered."}],
+              toolUseResult={"success": True}),
+]
+INTERRUPTED_LINES = [
+    _user_row("2026-10-16T10:00:00.000Z", "Task: fix the build."),
+    _assistant_row("2026-10-16T10:00:04.000Z", "msg_interrupt00001", None, (2, 30, 800, 10),
+                   [{"type": "tool_use", "id": "toolu_01BA", "name": "Bash",
+                     "input": {"command": "npm test"}}]),
+    _user_row("2026-10-16T10:00:06.000Z",
+              [{"type": "tool_result", "tool_use_id": "toolu_01BA", "is_error": True,
+                "content": "The user doesn't want to proceed with this tool use."}]),
+    _user_row("2026-10-16T10:00:06.010Z",
+              [{"type": "text", "text": "[Request interrupted by user]"}]),
+]
+TWO_TURN_LINES = [
+    _user_row("2026-10-16T10:00:00.000Z", "hello"),
+    _assistant_row("2026-10-16T10:00:02.000Z", "msg_turnone0000001", "end_turn", (1, 100, 0, 0),
+                   [{"type": "text", "text": "Hi."}]),
+    _user_row("2026-10-16T10:00:10.000Z",
+              "<command-message>kumi:yui</command-message>\n<command-name>/kumi:yui</command-name>"
+              "\n<command-args>review hello.py</command-args>",
+              promptId="p2", origin={"kind": "human"}, turnOrigin="human"),
+    _user_row("2026-10-16T10:00:10.001Z", [{"type": "text", "text": "Skill body."}], isMeta=True),
+]
+TWO_TURN_REPLY = _assistant_row("2026-10-16T10:00:12.000Z", "msg_turntwo0000001", "end_turn",
+                                (1, 50, 0, 0), [{"type": "text", "text": "Done."}])
+LOCAL_COMMAND_TAIL = [
+    _user_row("2026-10-16T10:00:20.000Z",
+              "<command-name>/exit</command-name>\n<command-message>exit</command-message>"
+              "\n<command-args></command-args>"),
+    _user_row("2026-10-16T10:00:20.001Z", "<local-command-stdout>Bye!</local-command-stdout>"),
+    _user_row("2026-10-16T10:00:20.002Z", "<local-command-caveat>x</local-command-caveat>",
+              isMeta=True),
+]
+
+
+def _run_metrics_with_late_row(project, lines, late=None, event="SubagentStop"):
+    """Run the hook on lines, appending late 0.5 s after it starts; return (rc, elapsed, rows)."""
+    path = os.path.join(project, "t.jsonl")
+    with open(path, "w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(json.dumps(line) + "\n")
+    payload = dict(_live_subagent_payload(project, path), hook_event_name=event)
+    start = time.monotonic()
+    proc = subprocess.Popen(
+        [sys.executable, os.path.join(ROOT, "hooks", "record_metrics.py")],
+        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        text=True, cwd=project,
+    )
+    proc.stdin.write(json.dumps(payload))
+    proc.stdin.close()
+    if late is not None:
+        time.sleep(0.5)
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(late) + "\n")
+    rc = proc.wait(timeout=15)
+    elapsed = time.monotonic() - start
+    name = "agents.jsonl" if event == "SubagentStop" else "sessions.jsonl"
+    rows_path = os.path.join(project, ".kumi", "metrics", name)
+    rows = []
+    if os.path.isfile(rows_path):
+        with open(rows_path, encoding="utf-8") as f:
+            rows = [json.loads(line) for line in f if line.strip()]
+    return rc, elapsed, rows
+
+
+def _check_no_wait(msg, lines, output_tokens, event="SubagentStop"):
+    project = tempfile.mkdtemp()
+    try:
+        enable_project(project)
+        rc, elapsed, rows = _run_metrics_with_late_row(project, lines, event=event)
+        got = rows[0]["tokens"]["output_tokens"] if len(rows) == 1 else None
+        if rc == 0 and elapsed < 1.5 and got == output_tokens:
+            ok(msg)
+        else:
+            bad(msg, f"rc={rc} elapsed={elapsed:.2f} rows={rows!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_record_metrics_handback_is_final():
+    _check_no_wait("record_metrics does not wait after a SubagentHandback tool call",
+                   HANDBACK_LINES, 40)
+
+
+def test_record_metrics_interrupt_is_final():
+    _check_no_wait("record_metrics does not wait after a [Request interrupted by user] row",
+                   INTERRUPTED_LINES, 30)
+
+
+def test_record_metrics_local_commands_do_not_restart_the_wait():
+    _check_no_wait("record_metrics does not wait for local commands or meta rows after the reply",
+                   TWO_TURN_LINES + [TWO_TURN_REPLY] + LOCAL_COMMAND_TAIL, 150, event="Stop")
+
+
+def test_record_metrics_new_prompt_restarts_the_wait():
+    # Turn 1 ended; a turn 2 prompt is on disk; the turn 2 reply lands after the hook starts.
+    project = tempfile.mkdtemp()
+    try:
+        enable_project(project)
+        rc, elapsed, rows = _run_metrics_with_late_row(
+            project, TWO_TURN_LINES, late=TWO_TURN_REPLY, event="Stop")
+        got = rows[0]["tokens"]["output_tokens"] if len(rows) == 1 else None
+        msg = "record_metrics waits for the new turn's reply after an earlier turn ended"
+        if rc == 0 and got == 150 and rows[0].get("when") == "2026-10-16T10:00:12.000Z":
+            ok(msg)
+        else:
+            bad(msg, f"rc={rc} elapsed={elapsed:.2f} rows={rows!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+
+
+def test_record_metrics_meta_prompt_restarts_the_wait():
+    # A meta row such as a subagent hand-back or a usage-limit reset starts a new model turn.
+    meta_prompts = [
+        _user_row("2026-10-16T10:00:10.000Z",
+                  "Another Claude session sent a message:\n"
+                  "<agent-message from=\"a0000000000000003\">\n"
+                  "[Subagent hand-back] The report follows:\n  Done.\n</agent-message>",
+                  isMeta=True, promptId="p2"),
+        _user_row("2026-10-16T10:00:10.000Z",
+                  "Your claude.ai usage limit has reset. Continue the task you were working on "
+                  "when the limit was reached; do not repeat work that is already complete.",
+                  isMeta=True, promptId="p2", origin={"kind": "auto-continuation"},
+                  promptSource="system"),
+    ]
+    results = []
+    for meta in meta_prompts:
+        project = tempfile.mkdtemp()
+        try:
+            enable_project(project)
+            rc, elapsed, rows = _run_metrics_with_late_row(
+                project, TWO_TURN_LINES[:2] + [meta], late=TWO_TURN_REPLY, event="Stop")
+            got = rows[0]["tokens"]["output_tokens"] if len(rows) == 1 else None
+            results.append((rc, got, f"{elapsed:.2f}"))
+        finally:
+            shutil.rmtree(project, ignore_errors=True)
+    msg = "record_metrics waits for the reply to a turn started by a meta row"
+    if all(rc == 0 and got == 150 for rc, got, _ in results):
+        ok(msg)
+    else:
+        bad(msg, f"(rc, output_tokens, elapsed)={results}")
 
 
 def run_restore_memory(payload_obj, proc_cwd=None):
@@ -3053,7 +3444,8 @@ def run_write_hooks(cwd, transcript):
     log_tool(cwd, "Edit", {"file_path": os.path.join(cwd, "x.py")})
     for event in ("Stop", "SubagentStop"):
         payload = {"hook_event_name": event, "cwd": cwd, "session_id": "abcd1234",
-                   "transcript_path": transcript, "agent_type": "kumi:eero"}
+                   "transcript_path": transcript, "agent_transcript_path": transcript,
+                   "agent_type": "kumi:eero"}
         run_hook("capture_memory", payload)
         run_hook("record_metrics", payload)
 
@@ -3501,6 +3893,192 @@ def test_hooks_parse_as_python_3_9():
     ok(name) if not problems else bad(name, "; ".join(problems))
 
 
+HOOK_SCRIPTS = sorted(
+    f for f in os.listdir(HOOKS_DIR) if f.endswith(".py") and f != "kumi_state.py"
+)
+
+
+def test_read_payload_bad_input():
+    cases = [
+        ("empty", b"", {}),
+        ("whitespace-only", b" \n\t", {}),
+        ("invalid JSON", b"not json", {}),
+        ("invalid UTF-8", b'{"a": "\xff"}', {}),
+        ("valid JSON", b'{"a": 1}', {"a": 1}),
+    ]
+    for label, data, want in cases:
+        r, w = os.pipe()
+        os.write(w, data)
+        os.close(w)
+        with os.fdopen(r, "rb") as stream, mock.patch("sys.stdin", stream):
+            got = kumi_state.read_payload(2.0)
+        name = f"read_payload returns {want!r} for {label} input"
+        ok(name) if got == want else bad(name, f"got {got!r}")
+
+
+def test_read_payload_returns_when_stdin_never_closes():
+    r, w = os.pipe()
+    try:
+        with os.fdopen(r, "rb") as stream, mock.patch("sys.stdin", stream):
+            start = time.monotonic()
+            got = kumi_state.read_payload(0.3)
+            elapsed = time.monotonic() - start
+    finally:
+        os.close(w)
+    name = "read_payload returns {} at its deadline when stdin never closes"
+    ok(name) if got == {} and elapsed < 1.5 else bad(name, f"got {got!r} after {elapsed:.2f}s")
+
+
+def test_hooks_exit_when_stdin_never_closes():
+    # Each hook gets a stdin pipe that stays open; it must exit soon after the read deadline.
+    project = tempfile.mkdtemp()
+    limit = kumi_state.STDIN_DEADLINE_SECONDS + 5
+    procs, slow = {}, []
+    try:
+        for script in HOOK_SCRIPTS:
+            procs[script] = subprocess.Popen(
+                [sys.executable, os.path.join(HOOKS_DIR, script)], stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=project,
+            )
+        start = time.monotonic()
+        for script, proc in procs.items():
+            try:
+                code = proc.wait(timeout=max(0.0, start + limit - time.monotonic()))
+                if code != 0:
+                    slow.append(f"{script} exited {code}")
+            except subprocess.TimeoutExpired:
+                slow.append(f"{script} still running after {limit}s")
+    finally:
+        for proc in procs.values():
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            proc.stdin.close()
+        shutil.rmtree(project, ignore_errors=True)
+    name = f"every hook exits 0 within {limit}s when stdin never closes"
+    ok(name) if not slow else bad(name, "; ".join(slow))
+
+
+def test_hooks_accept_empty_and_invalid_stdin():
+    project = tempfile.mkdtemp()
+    problems = []
+    try:
+        for script in HOOK_SCRIPTS:
+            for label, data in (("empty", ""), ("invalid JSON", "{not json")):
+                r = subprocess.run(
+                    [sys.executable, os.path.join(HOOKS_DIR, script)], input=data,
+                    capture_output=True, text=True, cwd=project, timeout=30,
+                )
+                if r.returncode != 0 or r.stderr:
+                    problems.append(f"{script} on {label}: exit {r.returncode} {r.stderr[-200:]!r}")
+    finally:
+        shutil.rmtree(project, ignore_errors=True)
+    name = "every hook exits 0 with no error on empty or invalid stdin"
+    ok(name) if not problems else bad(name, "; ".join(problems))
+
+
+def hook_entries(hooks_json=os.path.join(HOOKS_DIR, "hooks.json")):
+    """Yield (label, hook dict) for every hook entry in hooks.json."""
+    with open(hooks_json, encoding="utf-8") as f:
+        config = json.load(f)
+    for event, groups in config.get("hooks", {}).items():
+        for i, group in enumerate(groups):
+            for j, hook in enumerate(group.get("hooks", [])):
+                yield f"{event}[{i}].hooks[{j}]", hook
+
+
+def test_hooks_json_sets_timeouts():
+    problems = []
+    for entry, hook in hook_entries():
+        timeout = hook.get("timeout")
+        if type(timeout) is not int or timeout <= kumi_state.STDIN_DEADLINE_SECONDS:
+            problems.append(f"{entry}: timeout {timeout!r}")
+    name = "every hooks.json entry sets a timeout above the stdin read deadline"
+    ok(name) if not problems else bad(name, "; ".join(problems))
+
+
+def test_hook_commands_survive_a_hostile_plugin_path():
+    # Claude Code exports CLAUDE_PLUGIN_ROOT to the hook process.
+    if os.name == "nt":
+        ok("hostile plugin path check skipped on Windows (no quotes in file names)")
+        return
+    base = tempfile.mkdtemp()
+    try:
+        plugin = os.path.join(base, "kumi \"$(touch PWNED)\" 'x' `touch PWNED`")
+        for sub in ("hooks", "config"):
+            shutil.copytree(os.path.join(ROOT, sub), os.path.join(plugin, sub),
+                            ignore=shutil.ignore_patterns("__pycache__"))
+        project = os.path.join(base, "project")
+        os.makedirs(project)
+        # A module in the project dir must never shadow one the hook imports.
+        for planted in ("kumi_state.py", "runpy.py"):
+            with open(os.path.join(project, planted), "w") as f:
+                f.write("open('PLANTED', 'w').close()\n")
+        command = next(h["command"] for _, h in hook_entries() if "ensure_state.py" in h["command"])
+        payload = {"hook_event_name": "UserPromptSubmit", "prompt": "/kumi:yui hi", "cwd": project}
+        # The temp copy is deleted below, so coverage must not measure it.
+        env = dict(os.environ, CLAUDE_PLUGIN_ROOT=plugin)
+        env.pop("COVERAGE_PROCESS_START", None)
+        r = subprocess.run(
+            ["sh", "-c", command],
+            input=json.dumps(payload), capture_output=True, text=True, cwd=project, timeout=30,
+            env=env,
+        )
+        ran = os.path.isdir(os.path.join(project, ".kumi"))
+        injected = os.path.exists(os.path.join(project, "PWNED"))
+        shadowed = os.path.exists(os.path.join(project, "PLANTED"))
+        # Claude Code also substitutes the variable into the command text, where a quote or $( runs.
+        in_text = "$CLAUDE_PLUGIN_ROOT" in command or "${CLAUDE_PLUGIN_ROOT}" in command
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+    name = "hook command runs from a plugin path with quotes and $( and imports nothing from cwd"
+    if r.returncode == 0 and ran and not injected and not shadowed and not in_text:
+        ok(name)
+    else:
+        bad(name, f"exit={r.returncode} ran={ran} injected={injected} shadowed={shadowed} "
+                  f"in_text={in_text} "
+                  f"stderr={r.stderr[-300:]!r}")
+
+
+# The command reads CLAUDE_PLUGIN_ROOT from the environment and runs hooks/<script>.
+HOOK_SCRIPT_PATTERN = re.compile(r"os\.path\.join\(h,'([^']+)'\)")
+# Every hooks.json command is exactly this text with {script} filled in.
+HOOK_COMMAND_TEMPLATE = (
+    "python3 -I -c \"import os,runpy,sys;"
+    "h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);"
+    "runpy.run_path(os.path.join(h,'{script}'),run_name='__main__')\""
+)
+
+
+def test_hooks_json_points_at_real_scripts(hooks_json=os.path.join(HOOKS_DIR, "hooks.json")):
+    name = "hooks.json commands match the command template and point at scripts in hooks/"
+    try:
+        with open(hooks_json, encoding="utf-8") as f:
+            config = json.load(f)
+    except (OSError, ValueError) as e:
+        bad(name, f"cannot read {hooks_json}: {e}")
+        return
+    problems = []
+    for event, groups in config.get("hooks", {}).items():
+        for i, group in enumerate(groups):
+            for j, hook in enumerate(group.get("hooks", [])):
+                entry = f"{event}[{i}].hooks[{j}]"
+                command = hook.get("command", "")
+                match = HOOK_SCRIPT_PATTERN.search(command)
+                if not match:
+                    problems.append(f"{entry}: no hooks/ script in command {command!r}")
+                    continue
+                script = match.group(1)
+                if command != HOOK_COMMAND_TEMPLATE.replace("{script}", script):
+                    problems.append(f"{entry}: command differs from the template: {command!r}")
+                if not os.path.isfile(os.path.join(HOOKS_DIR, script)):
+                    problems.append(f"{entry}: hooks/{script} does not exist")
+    if not problems:
+        ok(name)
+    else:
+        bad(name, "; ".join(problems))
+
+
 def test_shipped_count_in_signature_forces_a_recount():
     project = tempfile.mkdtemp()
     try:
@@ -3707,6 +4285,195 @@ def hostile_tests():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+RELEASED_CHANGELOG = (
+    "# Changelog\n\n## [1.4.0] - 2026-10-04\n\n### Added\n\n- x\n\n## [1.3.0] - 2026-09-27\n"
+)
+
+
+def write_version_repo(tmp, plugin, changelog, listed=None):
+    """Write plugin.json, marketplace.json and CHANGELOG.md for a check_version test repo."""
+    os.makedirs(os.path.join(tmp, ".claude-plugin"))
+    with open(os.path.join(tmp, ".claude-plugin", "plugin.json"), "w", encoding="utf-8") as f:
+        json.dump({"name": "kumi", "version": plugin}, f)
+    entry = {"name": "kumi", "source": "./"}
+    if listed is not None:
+        entry["version"] = listed
+    with open(os.path.join(tmp, ".claude-plugin", "marketplace.json"), "w", encoding="utf-8") as f:
+        json.dump({"name": "kumi", "plugins": [entry]}, f)
+    with open(os.path.join(tmp, "CHANGELOG.md"), "w", encoding="utf-8") as f:
+        f.write(changelog)
+
+
+def version_problems(plugin, changelog, listed=None, tag=None):
+    """Run check_version.find_problems on a temp repo built from the given values."""
+    tmp = tempfile.mkdtemp()
+    try:
+        write_version_repo(tmp, plugin, changelog, listed)
+        return check_version.find_problems(tmp, tag)[1]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def version_cli_output(listed, tag=None):
+    """Run check_version.py on a passing temp repo; return (exit code, stdout)."""
+    tmp = tempfile.mkdtemp()
+    try:
+        write_version_repo(tmp, "1.4.0", RELEASED_CHANGELOG, listed)
+        args = ["--root", tmp] + (["--tag", tag] if tag else [])
+        r = subprocess.run([sys.executable, os.path.join(SCRIPTS_DIR, "check_version.py")] + args,
+                           capture_output=True, text=True)
+        return r.returncode, r.stdout
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_check_version_passes_on_real_repo():
+    version, problems, _c = check_version.find_problems(ROOT)
+    _v, tag_problems, _c = check_version.find_problems(ROOT, f"v{version}")
+    r = subprocess.run([sys.executable, os.path.join(SCRIPTS_DIR, "check_version.py")],
+                       capture_output=True, text=True)
+    name = "check_version.py passes on the real repo, with and without its matching tag"
+    if not problems and not tag_problems and r.returncode == 0:
+        ok(name)
+    else:
+        bad(name, f"problems={problems} tag_problems={tag_problems} "
+                  f"rc={r.returncode} out={r.stdout!r}")
+
+
+def test_check_version_unreleased_state_passes():
+    unreleased = "## [Unreleased]\n\n### Fixed\n\n- y\n\n## [1.4.0]"
+    problems = version_problems("1.4.0", RELEASED_CHANGELOG.replace("## [1.4.0]", unreleased))
+    name = "check_version: [Unreleased] entries, plugin.json at the last release, passes"
+    if not problems:
+        ok(name)
+    else:
+        bad(name, f"problems={problems}")
+
+
+def test_check_version_catches_changelog_mismatch():
+    unreleased = RELEASED_CHANGELOG.replace("## [1.4.0]", "## [Unreleased]\n\n- y\n\n## [1.4.0]")
+    cases = (
+        ("plugin.json ahead of the changelog", version_problems("1.5.0", unreleased)),
+        ("changelog ahead of plugin.json", version_problems("1.3.0", RELEASED_CHANGELOG)),
+        ("no released heading", version_problems("1.4.0", "# Changelog\n\n## [Unreleased]\n")),
+    )
+    missed = [label for label, problems in cases if len(problems) != 1]
+    name = "check_version fails when plugin.json and the newest CHANGELOG.md release differ"
+    if not missed:
+        ok(name)
+    else:
+        bad(name, f"not caught: {missed}")
+
+
+def test_check_version_catches_tag_mismatch():
+    wrong = version_problems("1.4.0", RELEASED_CHANGELOG, tag="v1.5.0")
+    no_prefix = version_problems("1.4.0", RELEASED_CHANGELOG, tag="1.4.0")
+    right = version_problems("1.4.0", RELEASED_CHANGELOG, tag="v1.4.0")
+    name = "check_version fails when the tag is not v<plugin.json version>, passes when it is"
+    if len(wrong) == 1 and len(no_prefix) == 1 and not right:
+        ok(name)
+    else:
+        bad(name, f"wrong={wrong} no_prefix={no_prefix} right={right}")
+
+
+def test_check_version_catches_marketplace_mismatch():
+    wrong = version_problems("1.4.0", RELEASED_CHANGELOG, listed="1.3.0")
+    right = version_problems("1.4.0", RELEASED_CHANGELOG, listed="1.4.0")
+    absent = version_problems("1.4.0", RELEASED_CHANGELOG)
+    name = "check_version fails on a differing marketplace.json version, passes on match or absence"
+    if len(wrong) == 1 and not right and not absent:
+        ok(name)
+    else:
+        bad(name, f"wrong={wrong} right={right} absent={absent}")
+
+
+def test_check_version_names_only_compared_sources():
+    listed = version_cli_output("1.4.0", tag="v1.4.0")
+    absent = version_cli_output(None)
+    want_listed = (0, "version 1.4.0 agrees across plugin.json, CHANGELOG.md, marketplace.json, "
+                      "tag v1.4.0\n")
+    want_absent = (0, "version 1.4.0 agrees across plugin.json, CHANGELOG.md\n")
+    name = "check_version.py names marketplace.json only when it sets a version"
+    if listed == want_listed and absent == want_absent:
+        ok(name)
+    else:
+        bad(name, f"listed={listed!r} absent={absent!r}")
+
+
+def test_check_version_cli_exits_1_on_mismatch():
+    tmp = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(tmp, ".claude-plugin"))
+        with open(os.path.join(tmp, ".claude-plugin", "plugin.json"), "w", encoding="utf-8") as f:
+            json.dump({"name": "kumi", "version": "1.5.0"}, f)
+        with open(os.path.join(tmp, "CHANGELOG.md"), "w", encoding="utf-8") as f:
+            f.write(RELEASED_CHANGELOG)
+        r = subprocess.run(
+            [sys.executable, os.path.join(SCRIPTS_DIR, "check_version.py"), "--root", tmp],
+            capture_output=True, text=True,
+        )
+        name = "check_version.py exits 1 and names the mismatch"
+        if r.returncode == 1 and "1.5.0 != newest CHANGELOG.md release 1.4.0" in r.stdout:
+            ok(name)
+        else:
+            bad(name, f"rc={r.returncode} out={r.stdout!r} err={r.stderr!r}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_check_version_rejects_non_object_json():
+    cases = (
+        ("plugin.json is a list", "[]", None),
+        ("marketplace.json is a list", None, "[]"),
+        ("marketplace plugins is not a list", None, '{"plugins": 5}'),
+        ("marketplace plugins entry is not an object", None, '{"plugins": [1]}'),
+    )
+    failed = []
+    for label, plugin, marketplace in cases:
+        tmp = tempfile.mkdtemp()
+        try:
+            plugin_dir = os.path.join(tmp, ".claude-plugin")
+            os.makedirs(plugin_dir)
+            files = {
+                "plugin.json": plugin or '{"name": "kumi", "version": "1.4.0"}',
+                "marketplace.json": marketplace or '{"plugins": []}',
+            }
+            for fname, text in files.items():
+                with open(os.path.join(plugin_dir, fname), "w", encoding="utf-8") as f:
+                    f.write(text)
+            with open(os.path.join(tmp, "CHANGELOG.md"), "w", encoding="utf-8") as f:
+                f.write(RELEASED_CHANGELOG)
+            r = subprocess.run(
+                [sys.executable, os.path.join(SCRIPTS_DIR, "check_version.py"), "--root", tmp],
+                capture_output=True, text=True,
+            )
+            if r.returncode != 2 or not r.stdout.startswith("error: ") or r.stderr:
+                failed.append(f"{label}: rc={r.returncode} out={r.stdout!r} "
+                              f"err={r.stderr[-200:]!r}")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    name = "check_version.py exits 2 with an error line when a JSON file is not an object"
+    if not failed:
+        ok(name)
+    else:
+        bad(name, "; ".join(failed))
+
+
+def test_ci_runs_version_check_with_tag():
+    with open(os.path.join(ROOT, ".github", "workflows", "ci.yml"), encoding="utf-8") as f:
+        text = f.read()
+    needed = (
+        "python3 scripts/check_version.py --tag \"$REF_NAME\"",
+        "REF_TYPE: ${{ github.ref_type }}",
+    )
+    missing = [n for n in needed if n not in text]
+    name = "ci.yml runs check_version.py and passes the tag on tag builds"
+    if not missing:
+        ok(name)
+    else:
+        bad(name, f"missing: {missing}")
+
+
 def main():
     try:
         contract = load_contract(CONTRACT)
@@ -3778,6 +4545,16 @@ def main():
     test_capture_memory_lock_release_never_removes_a_lock_it_no_longer_owns()
     test_capture_memory_failed_rotation_moves_nothing()
     test_record_metrics_subagent_agent_name()
+    test_record_metrics_subagent_reads_its_own_transcript()
+    test_record_metrics_skips_subagent_stop_without_agent_type()
+    test_record_metrics_counts_each_message_id_once()
+    test_record_metrics_waits_for_the_final_message()
+    test_record_metrics_wait_is_bounded()
+    test_record_metrics_handback_is_final()
+    test_record_metrics_interrupt_is_final()
+    test_record_metrics_local_commands_do_not_restart_the_wait()
+    test_record_metrics_new_prompt_restarts_the_wait()
+    test_record_metrics_meta_prompt_restarts_the_wait()
     test_ensure_state_creates_on_kumi_call()
     test_ensure_state_non_kumi_call_is_noop()
     test_ensure_state_empty_or_malformed_stdin()
@@ -3841,10 +4618,26 @@ def main():
     test_memory_log_header_and_name_cap()
     test_capture_reads_the_log_only_when_needed()
     test_hooks_parse_as_python_3_9()
+    test_hooks_json_points_at_real_scripts()
+    test_hooks_json_sets_timeouts()
+    test_hook_commands_survive_a_hostile_plugin_path()
+    test_read_payload_bad_input()
+    test_read_payload_returns_when_stdin_never_closes()
+    test_hooks_exit_when_stdin_never_closes()
+    test_hooks_accept_empty_and_invalid_stdin()
     test_shipped_count_in_signature_forces_a_recount()
     test_confirm_reply_escapes_and_caps_scope_keys()
     test_git_info_is_created_world_readable()
     test_fallback_path_without_dir_fd()
+    test_check_version_passes_on_real_repo()
+    test_check_version_unreleased_state_passes()
+    test_check_version_catches_changelog_mismatch()
+    test_check_version_catches_tag_mismatch()
+    test_check_version_catches_marketplace_mismatch()
+    test_check_version_names_only_compared_sources()
+    test_check_version_cli_exits_1_on_mismatch()
+    test_check_version_rejects_non_object_json()
+    test_ci_runs_version_check_with_tag()
     print()
     print(f"{PASS} passed, {FAIL} failed")
     shutil.rmtree(PLUGIN_DATA, ignore_errors=True)

@@ -2,7 +2,7 @@
 
 **An engineering team of specialists in Claude Code, led by yui.**
 
-[![CI](https://github.com/annavetech/kumi/actions/workflows/ci.yml/badge.svg)](https://github.com/annavetech/kumi/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/annavetech/kumi)](https://github.com/annavetech/kumi/releases) [![License](https://img.shields.io/github/license/annavetech/kumi)](LICENSE) ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-3f5596)
+[![CI](https://github.com/annavetech/kumi/actions/workflows/ci.yml/badge.svg)](https://github.com/annavetech/kumi/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/annavetech/kumi)](https://github.com/annavetech/kumi/releases) [![License](https://img.shields.io/github/license/annavetech/kumi)](LICENSE) ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-0B7A63)
 
 <img src="assets/demo/yui-demo.svg" alt="Animation of a Claude Code session in which a one-sentence /yui request for an email signup form gets two questions from yui, a plan, a yes, a design, a change to where the form goes, a build and a review, with yui reporting back and waiting for the user before each next step." width="880">
 

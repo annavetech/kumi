@@ -3,7 +3,6 @@
 Appends one line per tool action: time, session, tool, and a path for file tools only."""
 
 import datetime
-import json
 import os
 import sys
 
@@ -22,14 +21,6 @@ FILE_TOOLS = {
 }
 
 
-def read_payload():
-    try:
-        raw = sys.stdin.read()
-        return json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return {}
-
-
 def target_of(tool_name, tool_input):
     """Return the cleaned path for a file tool, else "-". Never commands, URLs, or queries."""
     key = FILE_TOOLS.get(tool_name) if isinstance(tool_name, str) else None
@@ -44,7 +35,7 @@ def target_of(tool_name, tool_input):
 def main():
     # Whatever throws, this hook must still exit 0 rather than crash the tool call.
     try:
-        payload = read_payload()
+        payload = kumi_state.read_payload()
         if not isinstance(payload, dict):
             return 0
         cfg = kumi_state.load()

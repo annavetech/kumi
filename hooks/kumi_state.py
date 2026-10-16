@@ -7,6 +7,8 @@ import json
 import os
 import random
 import stat
+import sys
+import threading
 import time
 import unicodedata
 
@@ -58,6 +60,45 @@ def load():
         return merged
     except (OSError, ValueError):
         return dict(_DEFAULTS)
+
+
+# Seconds a hook waits for the host to send its payload and close stdin.
+STDIN_DEADLINE_SECONDS = 3.0
+
+
+def _drain_stdin(out):
+    try:
+        stream = sys.stdin
+        try:
+            fd = stream.fileno()
+        except (AttributeError, OSError, ValueError):
+            out.append(stream.read())  # no OS handle, such as an in-memory stream
+            return
+        chunks = []
+        while True:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        out.append(b"".join(chunks))
+    except Exception:
+        pass  # an unreadable stdin is treated as no payload
+
+
+def read_payload(deadline_seconds=STDIN_DEADLINE_SECONDS):
+    """Return the hook's JSON payload from stdin; {} on timeout, empty input, or invalid JSON."""
+    out = []
+    # A daemon thread bounds the read on every OS; select() does not work on Windows pipes.
+    reader = threading.Thread(target=_drain_stdin, args=(out,), daemon=True)
+    reader.start()
+    reader.join(deadline_seconds)
+    if not out:
+        return {}
+    raw = out[0]
+    try:
+        return json.loads(raw) if raw.strip() else {}
+    except (ValueError, RecursionError):  # RecursionError: input nested too deep
+        return {}
 
 
 def project_dir(payload):

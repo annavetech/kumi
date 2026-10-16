@@ -11,14 +11,6 @@ import kumi_state
 REQUIRED_BRIEF_PARTS = ["goal", "output format", "where to look", "limits"]
 
 
-def read_payload():
-    try:
-        raw = sys.stdin.read()
-        return json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return {}
-
-
 def specialist_name(tool_input):
     """Return the kumi: prefix stripped subagent_type, or None if this isn't a kumi dispatch."""
     subagent = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
@@ -140,7 +132,7 @@ def emit_updated_input(updated_input):
 def main():
     # Whatever throws, this hook must still exit 0 rather than block the dispatch.
     try:
-        payload = read_payload()
+        payload = kumi_state.read_payload()
         if not isinstance(payload, dict) or payload.get("tool_name") not in ("Agent", "Task"):
             return 0
         tool_input = payload.get("tool_input")

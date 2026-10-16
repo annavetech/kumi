@@ -17,8 +17,9 @@ These are the exact commands CI runs (see `.github/workflows/ci.yml`):
 ```bash
 python3 tests/run_tests.py
 ruff check hooks scripts tests evals .github/scripts
+python3 scripts/check_version.py
 pymarkdown --config .pymarkdown.json scan -r . -e .github/pull_request_template.md
-coverage run --rcfile=.coveragerc tests/run_tests.py && coverage combine && coverage report --rcfile=.coveragerc
+coverage run --rcfile=.coveragerc tests/run_tests.py && coverage combine && coverage report --rcfile=.coveragerc --fail-under=60
 ```
 
 `pull_request_template.md` is excluded from the Markdown lint on purpose: GitHub renders it inside the "Open a pull request" form, which already has its own title field, so the template intentionally starts at `##` rather than a redundant top-level heading.
@@ -61,6 +62,7 @@ The full design (CODEOWNERS, auto-assign, chat commands and the merge gate, size
 
 1. Bump the `version` field in `.claude-plugin/plugin.json`.
 2. Move `CHANGELOG.md`'s `[Unreleased]` section to a new dated `[X.Y.Z]` heading.
-3. Commit.
-4. `git tag vX.Y.Z`
-5. Push the tag.
+3. Run `python3 scripts/check_version.py --tag vX.Y.Z` and confirm it passes. CI runs the same check, with the pushed tag on tag builds.
+4. Commit.
+5. `git tag vX.Y.Z`
+6. Push the tag.

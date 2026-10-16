@@ -7,7 +7,6 @@ import contextlib
 import datetime
 import hashlib
 import heapq
-import json
 import os
 import random
 import re
@@ -125,15 +124,6 @@ def _locked(dir_fd, timeout=2.0, stale_after=30.0):
             pass
 
 
-def read_payload():
-    # Empty or malformed input is tolerated: this hook must never fail an agent's run.
-    try:
-        raw = sys.stdin.read()
-        return json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return {}
-
-
 def read_handoff(root, cfg):
     """Return (kept text, total chars, sha256 hex, has content); hashes all, keeps the cap."""
     fd = kumi_state.open_in_state(root.handle, [cfg["files"]["handoff"]], os.O_RDONLY)
@@ -222,7 +212,7 @@ def prune_archives(mem, keep):
 def main():
     # Whatever throws, this hook must still exit 0 rather than crash the run.
     try:
-        payload = read_payload()
+        payload = kumi_state.read_payload()
         if not isinstance(payload, dict) or payload.get("stop_hook_active"):
             return 0  # don't re-enter from a stop a stop hook itself triggered
 

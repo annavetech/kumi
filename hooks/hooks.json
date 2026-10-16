@@ -3,15 +3,15 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/restore_memory.py\"" },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/apply_overrides.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'restore_memory.py'),run_name='__main__')\"", "timeout": 10 },
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'apply_overrides.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'ensure_state.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       }
     ],
@@ -19,13 +19,13 @@
       {
         "matcher": "Skill|Agent|Task",
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'ensure_state.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       },
       {
         "matcher": "Agent|Task",
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/inject_specialist_context.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'inject_specialist_context.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       }
     ],
@@ -33,36 +33,36 @@
       {
         "matcher": "kumi:.*",
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure_state.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'ensure_state.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       },
       {
         "matcher": "^kumi:(?:un)?trust$",
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/confirm_overrides.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'confirm_overrides.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       }
     ],
     "PostToolUse": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/log_activity.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'log_activity.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/capture_memory.py\"" },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/record_metrics.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'capture_memory.py'),run_name='__main__')\"", "timeout": 10 },
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'record_metrics.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       }
     ],
     "SubagentStop": [
       {
         "hooks": [
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/capture_memory.py\"" },
-          { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/record_metrics.py\"" }
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'capture_memory.py'),run_name='__main__')\"", "timeout": 10 },
+          { "type": "command", "command": "python3 -I -c \"import os,runpy,sys;h=os.path.join(os.environ['CLAUDE_PLUGIN_ROOT'],'hooks');sys.path.insert(0,h);runpy.run_path(os.path.join(h,'record_metrics.py'),run_name='__main__')\"", "timeout": 10 }
         ]
       }
     ]
