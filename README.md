@@ -2,7 +2,7 @@
 
 **An engineering team of specialists in Claude Code, led by yui.**
 
-[![CI](https://github.com/annavetech/kumi/actions/workflows/ci.yml/badge.svg)](https://github.com/annavetech/kumi/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/annavetech/kumi)](https://github.com/annavetech/kumi/releases) [![License](https://img.shields.io/github/license/annavetech/kumi)](LICENSE) ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-0B7A63)
+[![CI](https://github.com/annavetech/kumi/actions/workflows/ci.yml/badge.svg)](https://github.com/annavetech/kumi/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/annavetech/kumi)](https://github.com/annavetech/kumi/releases) [![License](https://img.shields.io/github/license/annavetech/kumi)](LICENSE) ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-0B7A63) [![Listed on ClaudePluginHub](https://www.claudepluginhub.com/badge/annavetech-kumi)](https://www.claudepluginhub.com/plugins/annavetech-kumi?ref=badge) [![Listed on Build with Claude](https://img.shields.io/badge/Build%20with%20Claude-listed-0B7A63)](https://buildwithclaude.com/plugin/kumi)
 
 <img src="assets/demo/yui-demo.svg" alt="Animation of a Claude Code session in which a one-sentence /yui request for an email signup form gets two questions from yui, a plan, a yes, a design, a change to where the form goes, a build and a review, with yui reporting back and waiting for the user before each next step." width="880">
 
@@ -10,7 +10,7 @@
 
 The team keeps a record of its decisions and progress inside the project. A new session is told that the record exists and reads it when asked to resume. Saved state and a rules file that came with a cloned repository are treated as project data: kumi reports what they say and acts on them only after confirmation.
 
-## Start
+## Install
 
 Install in Claude Code:
 
@@ -19,7 +19,9 @@ claude plugin marketplace add annavetech/kumi
 claude plugin install kumi@kumi
 ```
 
-Then call yui. One sentence is enough:
+## Usage
+
+Call yui. One sentence is enough:
 
 ```
 /yui I want a button on my site that lets people sign up for updates by email

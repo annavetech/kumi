@@ -2,6 +2,13 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-10-27
+
+### Changed
+
+- The README has ClaudePluginHub and Build with Claude badges, and its Start section is split into Install and Usage.
+- CI tooling updated: ruff 0.17.2, coverage 7.17.0, pymarkdownlnt 0.9.41, actions/setup-python 7.1.0.
+
 ## [1.5.0] - 2026-10-16
 
 ### Added
