@@ -21,6 +21,6 @@ jobs:
           python-version: "3.12"
       - name: Auto-assign
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MAINTAINER_LOGIN: ${{ vars.MAINTAINER_LOGIN }}
         run: python3 .github/scripts/auto_assign.py

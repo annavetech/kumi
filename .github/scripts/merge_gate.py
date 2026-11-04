@@ -33,10 +33,6 @@ def decide_state(labels):
 
 
 def main():
-    if "GITHUB_TOKEN" not in os.environ:
-        print("merge-gate: FAIL, GITHUB_TOKEN is not set")
-        return 1
-
     try:
         with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as f:
             event = json.load(f)
@@ -50,7 +46,11 @@ def main():
 
     state, description = decide_state(labels)
 
-    status, body = set_commit_status(repo, sha, state, description)
+    try:
+        status, body = set_commit_status(repo, sha, state, description)
+    except (RuntimeError, OSError) as e:
+        print(f"merge-gate: FAIL, {e}")
+        return 1
     if not (200 <= status < 300):
         report_if_error("set_commit_status(merge-gate)", status, body)
         print(f"merge-gate: FAIL, could not post the commit status (status {status})")
