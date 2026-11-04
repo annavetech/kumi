@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -33,11 +34,13 @@ os.environ["CLAUDE_PLUGIN_DATA"] = PLUGIN_DATA
 os.environ.pop("XDG_STATE_HOME", None)
 os.environ.pop("KUMI_STATE_DIR", None)
 
+import _github  # noqa: E402
 import capture_memory  # noqa: E402
 import chat_commands  # noqa: E402
 import check_version  # noqa: E402
 import kumi_state  # noqa: E402
 import strip_stale_approval  # noqa: E402
+import sync_labels  # noqa: E402
 from _github import report_if_error  # noqa: E402
 from build_agents import HOUSE_RULES_PATH, role_kind, shift_headings  # noqa: E402
 from merge_gate import MAX_DESCRIPTION_LENGTH, decide_state  # noqa: E402
@@ -565,7 +568,7 @@ def test_yui_skill_does_not_contradict_verify_rule():
 
 
 def test_chat_ops_workflow_permissions():
-    # Labeling a PR comment via GITHUB_TOKEN needs both issues:write and pull-requests:write.
+    # Labeling a PR comment with the workflow token needs issues:write and pull-requests:write.
     path = os.path.join(ROOT, ".github", "workflows", "chat-ops.yml")
     with open(path, encoding="utf-8") as f:
         text = f.read()
@@ -932,50 +935,294 @@ def test_strip_stale_approval_fails_closed_on_status_post_error():
         bad(name, f"result={result}")
 
 
-def run_github_script_without_token(script_name, event):
-    """Run a .github/scripts/*.py script with no GITHUB_TOKEN set. Returns CompletedProcess."""
-    fd, event_path = tempfile.mkstemp(suffix=".json")
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        json.dump(event, f)
-    env = dict(os.environ)
-    env.pop("GITHUB_TOKEN", None)
-    env["GITHUB_EVENT_PATH"] = event_path
-    env["GITHUB_REPOSITORY"] = "annavetech/kumi"
+FAKE_GH_HELPER = """import json, os, sys
+d = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(d, "responses.json"), encoding="utf-8") as f:
+    responses = json.load(f)
+calls_path = os.path.join(d, "calls.jsonl")
+count = 0
+if os.path.isfile(calls_path):
+    with open(calls_path, encoding="utf-8") as f:
+        count = len(f.readlines())
+with open(calls_path, "a", encoding="utf-8") as f:
+    f.write(json.dumps({"argv": sys.argv[1:], "stdin": sys.stdin.read()}) + "\\n")
+stdout, code = responses[min(count, len(responses) - 1)]
+sys.stdout.buffer.write(stdout.encode("latin-1"))
+sys.stderr.write("fake gh error\\n")
+sys.exit(code)
+"""
+
+
+def make_fake_gh(responses):
+    """Create a dir holding a fake `gh` that replays [stdout, exit_code] pairs in order."""
+    fake_dir = tempfile.mkdtemp()
+    helper = os.path.join(fake_dir, "fake_gh.py")
+    with open(helper, "w", encoding="utf-8") as f:
+        f.write(FAKE_GH_HELPER)
+    with open(os.path.join(fake_dir, "responses.json"), "w", encoding="utf-8") as f:
+        json.dump(responses, f)
+    gh = os.path.join(fake_dir, "gh")
+    with open(gh, "w", encoding="utf-8") as f:
+        f.write(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(helper)} "$@"\n')
+    os.chmod(gh, 0o755)
+    return fake_dir
+
+
+def fake_gh_calls(fake_dir):
+    path = os.path.join(fake_dir, "calls.jsonl")
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f]
+
+
+def call_fake_gh(responses, fn, *args):
+    """Run fn(*args) with a fake `gh` first on PATH. Returns (result_or_exception, calls)."""
+    fake_dir = make_fake_gh(responses)
     try:
-        return subprocess.run(
+        path = fake_dir + os.pathsep + os.environ.get("PATH", "")
+        with mock.patch.dict(os.environ, {"PATH": path}):
+            try:
+                result = fn(*args)
+            except Exception as e:
+                result = e
+        return result, fake_gh_calls(fake_dir)
+    finally:
+        shutil.rmtree(fake_dir, ignore_errors=True)
+
+
+def run_script_with_fake_gh(script_name, event, responses):
+    """Run a .github/scripts/*.py script with a fake `gh` on PATH. Returns (process, calls)."""
+    fake_dir = make_fake_gh(responses)
+    try:
+        event_path = os.path.join(fake_dir, "event.json")
+        with open(event_path, "w", encoding="utf-8") as f:
+            json.dump(event, f)
+        env = dict(os.environ)
+        env["PATH"] = fake_dir + os.pathsep + env.get("PATH", "")
+        env["GITHUB_EVENT_PATH"] = event_path
+        env["GITHUB_REPOSITORY"] = "annavetech/kumi"
+        env["GITHUB_EVENT_NAME"] = "pull_request_target"
+        r = subprocess.run(
             [sys.executable, os.path.join(GITHUB_SCRIPTS_DIR, script_name)],
             capture_output=True, text=True, env=env,
         )
+        return r, fake_gh_calls(fake_dir)
     finally:
-        os.remove(event_path)
+        shutil.rmtree(fake_dir, ignore_errors=True)
 
 
-def test_merge_gate_exits_clean_without_token():
-    event = {
-        "pull_request": {
-            "labels": [{"name": "lgtm"}, {"name": "approved"}],
-            "head": {"sha": "abc123"},
-        }
-    }
-    r = run_github_script_without_token("merge_gate.py", event)
-    name = "merge_gate.py exits 1 with a clear message when GITHUB_TOKEN is missing, no traceback"
-    if r.returncode == 1 and "GITHUB_TOKEN" in r.stdout and "Traceback" not in r.stderr:
+GH_EXPECTED_HEADERS = [
+    "-H", "Accept: application/vnd.github+json",
+    "-H", "X-GitHub-Api-Version: 2022-11-28",
+]
+NOT_FOUND = 'HTTP/2.0 404 Not Found\nX-A: b\r\n\r\n{"message": "Not Found"}'
+NO_HTTP_RESPONSE = ["", 1]
+
+
+def test_github_request_sends_body_through_gh_api():
+    if os.name != "posix":
+        ok("github_request calls gh api (skipped: not POSIX)")
+        return
+    response = 'HTTP/2.0 201 Created\nContent-Type: application/json\r\n\r\n{"id": 7}'
+    result, calls = call_fake_gh(
+        [[response, 0]], _github.add_labels, "annavetech/kumi", 42, ["size/S"]
+    )
+    expected = ["api", "--include", "--method", "POST", *GH_EXPECTED_HEADERS,
+                "--input", "-", "/repos/annavetech/kumi/issues/42/labels"]
+    name = "github_request calls gh api with the method, path and JSON body on stdin"
+    if (
+        result == (201, {"id": 7})
+        and len(calls) == 1
+        and calls[0]["argv"] == expected
+        and json.loads(calls[0]["stdin"]) == {"labels": ["size/S"]}
+    ):
+        ok(name)
+    else:
+        bad(name, f"result={result!r} calls={calls!r}")
+
+
+def test_github_request_returns_error_status_from_gh_api():
+    if os.name != "posix":
+        ok("github_request returns gh api error statuses (skipped: not POSIX)")
+        return
+    got, calls = call_fake_gh([[NOT_FOUND, 1]], _github.github_request, "GET", "/repos/a/b/x")
+    gone, _ = call_fake_gh([[NOT_FOUND, 1]], _github.remove_label, "a/b", 1, "lgtm")
+    empty, _ = call_fake_gh([["HTTP/2.0 204 No Content\nX-A: b\r\n\r\n", 0]],
+                            _github.github_request, "DELETE", "/repos/a/b/labels/x")
+    name = "github_request returns a non-2xx status and body from gh api instead of raising"
+    if (
+        got == (404, {"message": "Not Found"})
+        and "--input" not in calls[0]["argv"]
+        and gone == (404, None)
+        and empty == (204, None)
+    ):
+        ok(name)
+    else:
+        bad(name, f"got={got!r} gone={gone!r} empty={empty!r} calls={calls!r}")
+
+
+def test_github_request_raises_without_http_response():
+    if os.name != "posix":
+        ok("github_request raises without an HTTP response (skipped: not POSIX)")
+        return
+    result, _ = call_fake_gh([NO_HTTP_RESPONSE], _github.github_request, "GET", "/repos/a/b")
+    name = "github_request raises with gh's error text when gh api gets no HTTP response"
+    if isinstance(result, RuntimeError) and "fake gh error" in str(result):
+        ok(name)
+    else:
+        bad(name, f"result={result!r}")
+
+
+def test_github_request_times_out_as_no_http_response():
+    seen = {}
+
+    def slow_run(args, **kwargs):
+        seen.update(kwargs)
+        raise subprocess.TimeoutExpired(args, kwargs.get("timeout"))
+
+    with mock.patch("_github.subprocess.run", side_effect=slow_run):
+        try:
+            _github.github_request("GET", "/repos/a/b")
+            result = None
+        except RuntimeError as e:
+            result = e
+    name = "github_request gives gh api a 60s timeout and raises RuntimeError when it expires"
+    if seen.get("timeout") == 60 and result is not None and "timed out" in str(result):
+        ok(name)
+    else:
+        bad(name, f"seen={seen!r} result={result!r}")
+
+
+def test_remove_label_escapes_slash_in_label_name():
+    if os.name != "posix":
+        ok("remove_label escapes a slash (skipped: not POSIX)")
+        return
+    result, calls = call_fake_gh(
+        [["HTTP/2.0 200 OK\nX-A: b\r\n\r\n[]", 0]],
+        _github.remove_label, "annavetech/kumi", 42, "do-not-merge/hold",
+    )
+    name = "remove_label escapes a label name with a slash in the request path"
+    path = calls[0]["argv"][-1] if calls else None
+    expected = "/repos/annavetech/kumi/issues/42/labels/do-not-merge%2Fhold"
+    if result == (200, []) and path == expected:
+        ok(name)
+    else:
+        bad(name, f"result={result!r} path={path!r}")
+
+
+def test_list_existing_labels_pages_through_gh_api():
+    if os.name != "posix":
+        ok("list_existing_labels pages through gh api (skipped: not POSIX)")
+        return
+    head = "HTTP/2.0 200 OK\r\n" + "".join(f"X-Header-{i}: v{i}\r\n" for i in range(30)) + "\r\n"
+    first = [{"name": f"l{i}", "color": "ffffff", "description": None} for i in range(100)]
+    second = [{"name": "last", "color": "000000", "description": "d"}]
+    responses = [[head + json.dumps(first), 0], [head + json.dumps(second), 0]]
+    result, calls = call_fake_gh(responses, sync_labels.list_existing_labels, "annavetech/kumi")
+    paths = [c["argv"][-1] for c in calls]
+    expected = [f"/repos/annavetech/kumi/labels?per_page=100&page={n}" for n in (1, 2)]
+    name = "list_existing_labels reads two pages through gh api with a CRLF status line"
+    if (
+        isinstance(result, dict)
+        and len(result) == 101
+        and result["last"] == {"color": "000000", "description": "d"}
+        and result["l0"] == {"color": "ffffff", "description": ""}
+        and paths == expected
+        and all(c["argv"][3] == "GET" for c in calls)
+    ):
+        ok(name)
+    else:
+        bad(name, f"result={result!r} paths={paths!r}")
+
+
+def test_merge_gate_main_posts_status_through_gh():
+    if os.name != "posix":
+        ok("merge_gate.py posts its status through gh (skipped: not POSIX)")
+        return
+    event = {"pull_request": {"labels": [{"name": "lgtm"}, {"name": "approved"}],
+                              "head": {"sha": "abc123"}}}
+    created = ['HTTP/2.0 201 Created\nX-A: b\r\n\r\n{"state": "success"}', 0]
+    r, calls = run_script_with_fake_gh("merge_gate.py", event, [created])
+    name = "merge_gate.py posts the success status through gh api and exits 0"
+    body = json.loads(calls[0]["stdin"]) if len(calls) == 1 else None
+    if (
+        r.returncode == 0
+        and body == {"state": "success", "description": "lgtm and approved; not held",
+                     "context": "merge-gate"}
+        and calls[0]["argv"][3] == "POST"
+        and calls[0]["argv"][-1] == "/repos/annavetech/kumi/statuses/abc123"
+        and "merge-gate: success" in r.stdout
+    ):
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r} calls={calls!r}")
+
+
+def test_merge_gate_main_fails_cleanly_without_http_response():
+    if os.name != "posix":
+        ok("merge_gate.py fails cleanly without gh (skipped: not POSIX)")
+        return
+    event = {"pull_request": {"labels": [], "head": {"sha": "abc123"}}}
+    r, _ = run_script_with_fake_gh("merge_gate.py", event, [NO_HTTP_RESPONSE])
+    lines = r.stdout.splitlines()
+    name = "merge_gate.py exits 1 with one FAIL line when gh api gets no HTTP response"
+    if (
+        r.returncode == 1
+        and len(lines) == 1
+        and lines[0].startswith("merge-gate: FAIL, ")
+        and "Traceback" not in r.stderr
+    ):
         ok(name)
     else:
         bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}")
 
 
-def test_strip_stale_approval_exits_clean_without_token():
-    event = {
-        "pull_request": {
-            "number": 42,
-            "head": {"sha": "def456"},
-            "labels": [{"name": "lgtm"}, {"name": "approved"}],
-        }
-    }
-    r = run_github_script_without_token("strip_stale_approval.py", event)
-    name = "strip_stale_approval.py exits 1 with a clear message when the token is missing"
-    if r.returncode == 1 and "GITHUB_TOKEN" in r.stdout and "Traceback" not in r.stderr:
+def test_strip_stale_approval_main_through_gh():
+    if os.name != "posix":
+        ok("strip_stale_approval.py works through gh (skipped: not POSIX)")
+        return
+    event = {"pull_request": {"number": 42, "head": {"sha": "def456"}, "labels": [
+        {"name": "lgtm"}, {"name": "approved"}, {"name": "do-not-merge/hold"}]}}
+    removed = ["HTTP/2.0 200 OK\nX-A: b\r\n\r\n[]", 0]
+    created = ['HTTP/2.0 201 Created\nX-A: b\r\n\r\n{"state": "pending"}', 0]
+    r, calls = run_script_with_fake_gh(
+        "strip_stale_approval.py", event, [removed, removed, created]
+    )
+    requests = [(c["argv"][3], c["argv"][-1]) for c in calls]
+    expected = [
+        ("DELETE", "/repos/annavetech/kumi/issues/42/labels/lgtm"),
+        ("DELETE", "/repos/annavetech/kumi/issues/42/labels/approved"),
+        ("POST", "/repos/annavetech/kumi/statuses/def456"),
+    ]
+    body = json.loads(calls[2]["stdin"]) if len(calls) == 3 else None
+    name = "strip_stale_approval.py removes lgtm and approved and posts pending through gh api"
+    if (
+        r.returncode == 0
+        and requests == expected
+        and body == {"state": "pending", "description": "Blocked by do-not-merge/hold",
+                     "context": "merge-gate"}
+    ):
+        ok(name)
+    else:
+        bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r} calls={calls!r}")
+
+
+def test_strip_stale_approval_main_fails_cleanly_without_http_response():
+    if os.name != "posix":
+        ok("strip_stale_approval.py fails cleanly without gh (skipped: not POSIX)")
+        return
+    event = {"pull_request": {"number": 42, "head": {"sha": "def456"},
+                              "labels": [{"name": "lgtm"}]}}
+    r, _ = run_script_with_fake_gh("strip_stale_approval.py", event, [NO_HTTP_RESPONSE])
+    lines = r.stdout.splitlines()
+    name = "strip_stale_approval.py exits 1 with one FAIL line when gh api gets no HTTP response"
+    if (
+        r.returncode == 1
+        and len(lines) == 1
+        and lines[0].startswith("strip-stale-approval: FAIL, ")
+        and "Traceback" not in r.stderr
+    ):
         ok(name)
     else:
         bad(name, f"rc={r.returncode} stdout={r.stdout!r} stderr={r.stderr!r}")
@@ -3253,18 +3500,18 @@ def test_activity_log_never_stores_command_text():
     try:
         enable_project(project)
         calls = [
-            ("Bash", {"command": "curl -H 'Authorization: Bearer SECRET'"}),
-            ("WebFetch", {"url": "https://example.invalid/?token=SECRET"}),
-            ("Grep", {"pattern": "SECRET"}),
-            ("WebSearch", {"query": "SECRET"}),
-            ("mcp__x__y", {"path": "/v1?key=SECRET"}),
+            ("Bash", {"command": "curl -H 'X-Trace: MARKER-VALUE'"}),
+            ("WebFetch", {"url": "https://example.invalid/?q=MARKER-VALUE"}),
+            ("Grep", {"pattern": "MARKER-VALUE"}),
+            ("WebSearch", {"query": "MARKER-VALUE"}),
+            ("mcp__x__y", {"path": "/v1?q=MARKER-VALUE"}),
         ]
         for tool, tool_input in calls:
             log_tool(project, tool, tool_input)
         log = read_activity(project)
         name = "activity log keeps tool names and never a command, URL, pattern, or query"
         tools = all(f"\t{t}\t-\n" in log for t, _ in calls)
-        ok(name) if tools and "SECRET" not in log else bad(name, f"log={log!r}")
+        ok(name) if tools and "MARKER-VALUE" not in log else bad(name, f"log={log!r}")
     finally:
         shutil.rmtree(project, ignore_errors=True)
 
@@ -3310,9 +3557,9 @@ def test_enable_cleans_old_activity_log_once():
         logs = os.path.join(project, ".kumi", "logs")
         os.makedirs(logs)
         old = (
-            "2026-09-01 10:00:00\tabcd1234\tBash\tcurl -H 'Authorization: Bearer SECRET'\n"
+            "2026-09-01 10:00:00\tabcd1234\tBash\tcurl -H 'X-Trace: MARKER-VALUE'\n"
             "2026-09-01 10:00:01\tabcd1234\tEdit\t/p/x.py\n"
-            "2026-09-01 10:00:03\tabcd1234\tGrep\tPATTERN-SECRET\n"
+            "2026-09-01 10:00:03\tabcd1234\tGrep\tPATTERN-MARKER-VALUE\n"
             "2026-09-01 10:00:04\tabcd1234\tEdit\t/p/" + "L" * 9000 + "\n"
             "broken line\n"
         )
@@ -3326,7 +3573,7 @@ def test_enable_cleans_old_activity_log_once():
         second = read_activity(project)
         name = "enabling a state dir strips old command and pattern text once, keeps file paths"
         if (
-            "SECRET" not in first
+            "MARKER-VALUE" not in first
             and "2026-09-01 10:00:00\tabcd1234\tBash\t-\n" in first
             and "2026-09-01 10:00:03\tabcd1234\tGrep\t-\n" in first
             and "2026-09-01 10:00:04\tabcd1234\tEdit\t-\n" in first and "LLLL" not in first
@@ -3510,15 +3757,15 @@ def test_symlinked_handoff_is_never_read():
     outside = tempfile.mkdtemp()
     try:
         enable_project(project)
-        secret = os.path.join(outside, "credentials")
-        with open(secret, "w") as f:
-            f.write("OUTSIDE-SECRET")
-        os.symlink(secret, os.path.join(project, ".kumi", "handoff.md"))
+        outside_file = os.path.join(outside, "outside-file")
+        with open(outside_file, "w") as f:
+            f.write("OUTSIDE-CONTENT")
+        os.symlink(outside_file, os.path.join(project, ".kumi", "handoff.md"))
         os.makedirs(os.path.join(project, ".kumi", "decisions", "kai"))
         with open(os.path.join(project, ".kumi", "decisions", "kai", "d.md"), "w") as f:
             f.write("d")
         run_hook("capture_memory", {"hook_event_name": "Stop", "cwd": project})
-        hits = files_containing(project, "OUTSIDE-SECRET")
+        hits = files_containing(project, "OUTSIDE-CONTENT")
         log = os.path.join(project, ".kumi", "memory", "log.md")
         name = "a symlinked handoff is never read into the project"
         ok(name) if not hits and os.path.isfile(log) else bad(name, f"hits={hits}")
@@ -4524,8 +4771,16 @@ def main():
     test_strip_stale_approval_nothing_to_remove()
     test_strip_stale_approval_fails_closed_on_remove_error()
     test_strip_stale_approval_fails_closed_on_status_post_error()
-    test_merge_gate_exits_clean_without_token()
-    test_strip_stale_approval_exits_clean_without_token()
+    test_github_request_sends_body_through_gh_api()
+    test_github_request_returns_error_status_from_gh_api()
+    test_github_request_raises_without_http_response()
+    test_github_request_times_out_as_no_http_response()
+    test_remove_label_escapes_slash_in_label_name()
+    test_list_existing_labels_pages_through_gh_api()
+    test_merge_gate_main_posts_status_through_gh()
+    test_merge_gate_main_fails_cleanly_without_http_response()
+    test_strip_stale_approval_main_through_gh()
+    test_strip_stale_approval_main_fails_cleanly_without_http_response()
     test_validate_claude_manifest_job_pins_npm_version_safely()
     test_no_emoji_under_github()
     test_all_real_skills_pass()

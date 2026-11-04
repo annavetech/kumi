@@ -2,6 +2,17 @@
 
 All notable changes to kumi are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-11-04
+
+### Changed
+
+- GitHub automation scripts call the GitHub API through the `gh` CLI, so no repository code reads a token.
+- CI tooling updated: ruff 0.17.3.
+
+### Fixed
+
+- `remove_label` URL-escapes the label name, so labels with a slash in the name are removed.
+
 ## [1.5.1] - 2026-10-27
 
 ### Changed

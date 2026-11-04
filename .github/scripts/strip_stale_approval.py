@@ -38,10 +38,6 @@ def strip_and_report(repo, pr_number, sha, labels):
 
 
 def main():
-    if "GITHUB_TOKEN" not in os.environ:
-        print("strip-stale-approval: FAIL, GITHUB_TOKEN is not set")
-        return 1
-
     try:
         with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as f:
             event = json.load(f)
@@ -54,7 +50,11 @@ def main():
         print(f"strip-stale-approval: FAIL, could not read the event payload: {e}")
         return 1
 
-    if not strip_and_report(repo, pr_number, sha, labels):
+    try:
+        if not strip_and_report(repo, pr_number, sha, labels):
+            return 1
+    except (RuntimeError, OSError) as e:
+        print(f"strip-stale-approval: FAIL, {e}")
         return 1
     return 0
 
